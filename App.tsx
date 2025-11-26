@@ -752,6 +752,6 @@ export default function App() {
            {showFPS && <div className="absolute right-4 text-[10px] text-parchment-100 font-mono"><span title="Quadros por segundo atuais">FPS: {actualFPS}</span></div>}
         </div>
       </div>
+    </div>
     );
   }
-}
