@@ -16,6 +16,8 @@ export const SparklesIcon = ({ className }: { className?: string }) => (
   <i className={`fa-solid fa-wand-magic-sparkles ${className}`} aria-hidden="true" />
 );
 
+
+
 export const MillIcon = ({ className }: { className?: string }) => (
   <i className={`fa-solid fa-wind ${className}`} aria-hidden="true" />
 );

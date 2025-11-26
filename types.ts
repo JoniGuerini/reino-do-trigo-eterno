@@ -20,6 +20,8 @@ export interface GameState {
   totalCathedralsGenerated: number; // Catedrais
   totalCitadelsGenerated: number; // Cidadelas
   totalKingdomsGenerated: number; // Reinos (Gerado por nada ainda/Click futuro ou fim de jogo)
+
+  upgrades: Record<string, boolean>; // IDs das melhorias compradas
 }
 
 export enum GameAction {
