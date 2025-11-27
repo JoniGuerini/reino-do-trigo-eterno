@@ -1,324 +1,237 @@
 import React, { useState, useEffect, useRef } from 'react';
+import Decimal from 'break_infinity.js';
 import { GameState } from './types';
 import {
   WheatIcon, PeasantIcon, MillIcon, StableIcon,
-  GuildIcon, MarketIcon, CastleIcon, CathedralIcon, CitadelIcon, KingdomIcon, ScrollIcon
+  GuildIcon, MarketIcon, CastleIcon, CathedralIcon, CitadelIcon, KingdomIcon, WorkerIcon
 } from './components/Icons';
+import {
+  PEASANT_COST, MILL_COST, STABLE_COST, GUILD_COST, MARKET_COST, CASTLE_COST, CATHEDRAL_COST, CITADEL_COST, KINGDOM_COST,
+  HARVEST_DURATION_MS, MILL_DURATION_MS, STABLE_DURATION_MS, GUILD_DURATION_MS, MARKET_DURATION_MS, CASTLE_DURATION_MS, CATHEDRAL_DURATION_MS, CITADEL_DURATION_MS, KINGDOM_DURATION_MS,
+  WHEAT_PER_HARVEST, PEASANTS_PER_MILL_CYCLE, MILLS_PER_STABLE_CYCLE, STABLES_PER_GUILD_CYCLE, GUILDS_PER_MARKET_CYCLE, MARKETS_PER_CASTLE_CYCLE, CASTLES_PER_CATHEDRAL_CYCLE, CATHEDRALS_PER_CITADEL_CYCLE, CITADELS_PER_KINGDOM_CYCLE,
+  SAVE_KEY, AUTOMATION_THRESHOLD, GENERATOR_ORDER, STATE_KEYS, UPGRADES_DATA, GENERATOR_INFO, INITIAL_STATE,
+  formatNumber, getUpgradesForType, getUpgradeCost, calculateMultipliers, calculatePurchase,
+  BuyMode, GeneratorType, Upgrade,
+  WORKER_COST,
+  PEASANT_WHEAT_COST, MILL_WHEAT_COST, STABLE_WHEAT_COST, GUILD_WHEAT_COST, MARKET_WHEAT_COST, CASTLE_WHEAT_COST, CATHEDRAL_WHEAT_COST, CITADEL_WHEAT_COST, KINGDOM_WHEAT_COST,
+  PEASANT_PREV_COST, MILL_PREV_COST, STABLE_PREV_COST, GUILD_PREV_COST, MARKET_PREV_COST, CASTLE_PREV_COST, CATHEDRAL_PREV_COST, CITADEL_PREV_COST, KINGDOM_PREV_COST
+} from './gameData';
+import GeneratorCard from './components/GeneratorCard';
 
-// --- CONFIGURAÇÃO DE BALANCEAMENTO ---
-
-// Custos (Cada Tier custa unidades do Tier anterior)
-const PEASANT_COST = 10;      // Trigos
-const MILL_COST = 10;         // Camponeses
-const STABLE_COST = 10;       // Moinhos
-const GUILD_COST = 15;        // Estábulos
-const MARKET_COST = 20;       // Guildas
-const CASTLE_COST = 25;       // Mercados
-const CATHEDRAL_COST = 30;    // Castelos
-const CATHEDRAL_COST_2 = 30;  // Fix linter duplicate if any
-const CITADEL_COST = 40;      // Catedrais
-const KINGDOM_COST = 50;      // Cidadelas
-
-// Tempos de Produção (ms)
-const HARVEST_DURATION_MS = 2000;
-const MILL_DURATION_MS = 5000;
-const STABLE_DURATION_MS = 12000;
-const GUILD_DURATION_MS = 20000;
-const MARKET_DURATION_MS = 30000;
-const CASTLE_DURATION_MS = 45000;
-const CATHEDRAL_DURATION_MS = 60000;
-const CITADEL_DURATION_MS = 90000;
-const KINGDOM_DURATION_MS = 120000;
-
-// Produção (Output por ciclo)
-const WHEAT_PER_HARVEST = 3;
-const PEASANTS_PER_MILL_CYCLE = 4;
-const MILLS_PER_STABLE_CYCLE = 5;
-const STABLES_PER_GUILD_CYCLE = 6;
-const GUILDS_PER_MARKET_CYCLE = 8;
-const MARKETS_PER_CASTLE_CYCLE = 10;
-const CASTLES_PER_CATHEDRAL_CYCLE = 15;
-const CATHEDRALS_PER_CITADEL_CYCLE = 20;
-const CITADELS_PER_KINGDOM_CYCLE = 25;
-
-const SAVE_KEY = 'reino_trigo_save_v2';
-const AUTOMATION_THRESHOLD = 5; // Quantidade do tier superior necessária para automatizar o atual
-
-const INITIAL_STATE: GameState = {
-  wheat: 0,
-  peasants: 1,
-  mills: 0,
-  stables: 0,
-  guilds: 0,
-  markets: 0,
-  castles: 0,
-  cathedrals: 0,
-  citadels: 0,
-  kingdoms: 0,
-
-  totalHarvested: 0,
-  totalPeasantsGenerated: 0,
-  totalMillsGenerated: 0,
-  totalStablesGenerated: 0,
-  totalGuildsGenerated: 0,
-  totalMarketsGenerated: 0,
-  totalCastlesGenerated: 0,
-  totalCathedralsGenerated: 0,
-  totalCitadelsGenerated: 0,
-  totalKingdomsGenerated: 0,
-
-  upgrades: {},
-};
-
-type BuyMode = '1' | '1%' | '10%' | '50%' | '100%';
-type GeneratorType = 'peasant' | 'mill' | 'stable' | 'guild' | 'market' | 'castle' | 'cathedral' | 'citadel' | 'kingdom';
 type FPSLimit = number | 'vsync' | 'unlimited';
 
-// Ordered list for rendering and progression logic
-const GENERATOR_ORDER: GeneratorType[] = [
-  'peasant', 'mill', 'stable', 'guild', 'market',
-  'castle', 'cathedral', 'citadel', 'kingdom'
-];
 
-// Mapping generator type to GameState plural keys
-const STATE_KEYS: Record<GeneratorType, keyof GameState> = {
-  peasant: 'peasants',
-  mill: 'mills',
-  stable: 'stables',
-  guild: 'guilds',
-  market: 'markets',
-  castle: 'castles',
-  cathedral: 'cathedrals',
-  citadel: 'citadels',
-  kingdom: 'kingdoms'
-};
 
-// --- SISTEMA DE UPGRADES ---
-interface Upgrade {
-  id: string;
-  name: string;
-  type: 'speed' | 'efficiency';
-  generatorType: GeneratorType;
-  multiplier: number; // x2
-  cost: number;
-  description: string;
+interface InfoModalProps {
+  type: GeneratorType;
+  onClose: () => void;
+  onNavigate: (type: GeneratorType) => void;
+  gameState: GameState;
+  buyUpgrade: (upgrade: Upgrade) => void;
 }
 
-const UPGRADES_DATA: Upgrade[] = [
-  // Camponês
-  { id: 'peasant_eff_1', name: 'Foices de Aço', type: 'efficiency', generatorType: 'peasant', multiplier: 2, cost: 100, description: 'Dobra a quantidade de trigo colhido.' },
-  { id: 'peasant_spd_1', name: 'Botas Leves', type: 'speed', generatorType: 'peasant', multiplier: 2, cost: 250, description: 'Dobra a velocidade de movimento dos camponeses.' },
+const InfoModal: React.FC<InfoModalProps> = ({ type, onClose, onNavigate, gameState, buyUpgrade }) => {
+  const info = GENERATOR_INFO[type];
+  const upgrades = getUpgradesForType(type);
+  const { speedMult, effMult } = calculateMultipliers(type, gameState.upgrades || {});
+  const { ref, isDragging, events } = useDraggableScroll();
 
-  // Moinho
-  { id: 'mill_eff_1', name: 'Velas Reforçadas', type: 'efficiency', generatorType: 'mill', multiplier: 2, cost: 1000, description: 'Dobra a atração de camponeses.' },
-  { id: 'mill_spd_1', name: 'Engrenagens Óleadas', type: 'speed', generatorType: 'mill', multiplier: 2, cost: 2500, description: 'Moinhos giram 2x mais rápido.' },
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-wood-900/80 backdrop-blur-sm animate-in fade-in duration-200"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-4xl bg-parchment-200 rounded-lg shadow-2xl border-4 border-wood-500 relative overflow-hidden flex flex-col h-[60vh]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/wood-pattern.png')] pointer-events-none"></div>
+        <button onClick={onClose} className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center text-wood-700 hover:text-wood-900 z-20"><i className="fa-solid fa-xmark text-xl"></i></button>
+        <div className="bg-parchment-300/50 p-6 text-center border-b border-wood-300/30 shrink-0">
+          <div className={`text-4xl mb-3 ${info.colorClass}`}>{React.createElement(info.icon)}</div>
+          <h2 className="font-heading text-2xl text-wood-900">{info.name}</h2>
+          <p className="italic text-wood-700 font-serif text-center leading-relaxed text-sm mt-2 max-w-2xl mx-auto">"{info.flavor}"</p>
+        </div>
 
-  // Estábulo
-  { id: 'stable_eff_1', name: 'Cavalos de Tração', type: 'efficiency', generatorType: 'stable', multiplier: 2, cost: 10000, description: 'Transporta materiais para 2x mais moinhos.' },
-  { id: 'stable_spd_1', name: 'Estradas Pavimentadas', type: 'speed', generatorType: 'stable', multiplier: 2, cost: 25000, description: 'Viagens logísticas 2x mais rápidas.' },
+        <div
+          ref={ref}
+          {...events}
+          className={`p-6 overflow-y-auto custom-scrollbar flex-1 ${isDragging ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Left Column: Stats */}
+            <div className="flex flex-col gap-6">
+              <div className="bg-white/40 p-4 rounded border border-parchment-border flex-1 flex flex-col justify-center gap-4">
+                <div className="flex justify-between items-center border-b border-wood-300/20 pb-2 mb-2">
+                  <span className="font-bold text-wood-800 text-xs uppercase tracking-wider">Custos Base</span>
+                  <div className="flex flex-col items-end gap-1">
+                    {/* Worker Cost */}
+                    <span className="font-heading text-wood-900 flex items-center gap-2 tabular-nums">
+                      {formatNumber(new Decimal(WORKER_COST))}
+                      <WorkerIcon className="text-lg text-slate-700" />
+                    </span>
+                    {/* Prev Tier Cost */}
+                    {type !== 'peasant' && (
+                      <span className="font-heading text-wood-900 flex items-center gap-2 tabular-nums">
+                        {type === 'mill' && formatNumber(new Decimal(MILL_PREV_COST))}
+                        {type === 'stable' && formatNumber(new Decimal(STABLE_PREV_COST))}
+                        {type === 'guild' && formatNumber(new Decimal(GUILD_PREV_COST))}
+                        {type === 'market' && formatNumber(new Decimal(MARKET_PREV_COST))}
+                        {type === 'castle' && formatNumber(new Decimal(CASTLE_PREV_COST))}
+                        {type === 'cathedral' && formatNumber(new Decimal(CATHEDRAL_PREV_COST))}
+                        {type === 'citadel' && formatNumber(new Decimal(CITADEL_PREV_COST))}
+                        {type === 'kingdom' && formatNumber(new Decimal(KINGDOM_PREV_COST))}
+                        {React.createElement(info.costIcon, { className: `text-lg ${info.costColor}` })}
+                      </span>
+                    )}
+                    {/* Wheat Cost */}
+                    <span className="font-heading text-wood-900 flex items-center gap-2 tabular-nums">
+                      {type === 'peasant' && formatNumber(new Decimal(PEASANT_WHEAT_COST))}
+                      {type === 'mill' && formatNumber(new Decimal(MILL_WHEAT_COST))}
+                      {type === 'stable' && formatNumber(new Decimal(STABLE_WHEAT_COST))}
+                      {type === 'guild' && formatNumber(new Decimal(GUILD_WHEAT_COST))}
+                      {type === 'market' && formatNumber(new Decimal(MARKET_WHEAT_COST))}
+                      {type === 'castle' && formatNumber(new Decimal(CASTLE_WHEAT_COST))}
+                      {type === 'cathedral' && formatNumber(new Decimal(CATHEDRAL_WHEAT_COST))}
+                      {type === 'citadel' && formatNumber(new Decimal(CITADEL_WHEAT_COST))}
+                      {type === 'kingdom' && formatNumber(new Decimal(KINGDOM_WHEAT_COST))}
+                      <WheatIcon className="text-lg text-harvest" />
+                    </span>
+                  </div>
+                </div>
+                <div className="flex justify-between items-center border-b border-wood-300/20 pb-2 mb-2">
+                  <span className="font-bold text-wood-800 text-xs uppercase tracking-wider">Produção</span>
+                  <span className="font-heading text-wood-900 flex items-center gap-2 tabular-nums">
+                    <span className={effMult.gt(1) ? 'text-emerald-700 font-bold' : ''}>{formatNumber(info.prodAmount.mul(effMult))}</span>
+                    {React.createElement(info.prodIcon, { className: `text-lg ${info.prodColor}` })}
+                    <span className={`text-sm ml-1 font-body font-bold ${speedMult > 1 ? 'text-emerald-700' : 'text-wood-600'}`}>/ {info.duration / speedMult}s</span>
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-wood-800 text-xs uppercase tracking-wider">{info.totalLabel}</span>
+                  <span className="font-heading text-wood-900 flex items-center gap-2 tabular-nums">{formatNumber(gameState[info.totalKey] as Decimal)}{React.createElement(info.prodIcon, { className: `text-lg ${info.prodColor}` })}</span>
+                </div>
+              </div>
+            </div>
 
-  // Guilda
-  { id: 'guild_eff_1', name: 'Pesos Padronizados', type: 'efficiency', generatorType: 'guild', multiplier: 2, cost: 100000, description: 'Negociações rendem 2x mais estábulos.' },
-  { id: 'guild_spd_1', name: 'Rotas Comerciais', type: 'speed', generatorType: 'guild', multiplier: 2, cost: 250000, description: 'Guildas operam com o dobro da velocidade.' },
+            {/* Right Column: Upgrades */}
+            <div className="flex flex-col gap-4 relative">
+              {/* Divider for desktop */}
+              <div className="hidden md:block absolute left-[-1rem] top-0 bottom-0 w-px bg-wood-300/30"></div>
 
-  // Mercado
-  { id: 'market_eff_1', name: 'Moedas de Ouro', type: 'efficiency', generatorType: 'market', multiplier: 2, cost: 1000000, description: 'Fluxo de caixa permite fundar 2x mais guildas.' },
-  { id: 'market_spd_1', name: 'Ábacos Avançados', type: 'speed', generatorType: 'market', multiplier: 2, cost: 2500000, description: 'Contadores trabalham 2x mais rápido.' },
+              <h3 className="font-heading text-wood-900 text-center text-lg uppercase tracking-wider">Tecnologias</h3>
+              {upgrades.length > 0 ? (
+                <div className="space-y-3">
+                  {upgrades.map(u => {
+                    const currentRank = gameState.upgrades?.[u.id] || 0;
+                    const maxRank = u.maxRank || 10;
+                    const isMaxed = currentRank >= maxRank;
+                    const cost = getUpgradeCost(u, currentRank);
+                    const canAfford = gameState.wheat.gte(cost);
 
-  // Castelo
-  { id: 'castle_eff_1', name: 'Muralhas de Pedra', type: 'efficiency', generatorType: 'castle', multiplier: 2, cost: 10000000, description: 'Segurança atrai 2x mais mercados.' },
-  { id: 'castle_spd_1', name: 'Decretos Reais', type: 'speed', generatorType: 'castle', multiplier: 2, cost: 25000000, description: 'Ordens são executadas 2x mais rápido.' },
+                    return (
+                      <div key={u.id} className={`p-3 rounded border flex flex-col gap-2 ${currentRank > 0 ? 'bg-emerald-100/50 border-emerald-300' : 'bg-white/40 border-parchment-border'}`}>
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <div className="font-bold text-wood-900 text-sm flex items-center gap-2">
+                              {u.name}
+                              {currentRank > 0 && <span className="text-xs bg-wood-200 px-1.5 rounded text-wood-800 border border-wood-300">Lv {currentRank}</span>}
+                            </div>
+                            <div className="text-[10px] text-wood-600 leading-tight">{u.description}</div>
+                          </div>
+                          {isMaxed ? (
+                            <i className="fa-solid fa-check text-emerald-600" title="Máximo Atingido"></i>
+                          ) : (
+                            <div className="flex items-center gap-1 font-heading text-sm text-wood-800 tabular-nums">
+                              {formatNumber(cost)} <WheatIcon className="text-harvest" />
+                            </div>
+                          )}
+                        </div>
+                        {!isMaxed && (
+                          <button
+                            onClick={() => buyUpgrade(u)}
+                            disabled={!canAfford}
+                            className={`w-full py-1 text-[10px] uppercase font-bold tracking-wider rounded border transition-all ${canAfford ? 'bg-wood-700 text-parchment-100 border-wood-900 hover:bg-wood-800' : 'bg-wood-300 text-wood-500 border-wood-400 cursor-not-allowed'}`}
+                          >
+                            {currentRank === 0 ? 'Pesquisar' : 'Melhorar'}
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <p className="text-center text-wood-500 italic text-sm">Nenhuma tecnologia disponível.</p>
+              )}
+            </div>
+          </div>
+        </div>
 
-  // Catedral
-  { id: 'cathedral_eff_1', name: 'Vitrais Sagrados', type: 'efficiency', generatorType: 'cathedral', multiplier: 2, cost: 100000000, description: 'Fé inspira a construção de 2x mais castelos.' },
-  { id: 'cathedral_spd_1', name: 'Cantos Gregorianos', type: 'speed', generatorType: 'cathedral', multiplier: 2, cost: 250000000, description: 'Rituais finalizados na metade do tempo.' },
+        {/* Navigation Bar */}
+        <div className="p-2 shrink-0 flex justify-center gap-2 overflow-x-auto custom-scrollbar">
+          {GENERATOR_ORDER.map((genType) => {
+            const genInfo = GENERATOR_INFO[genType];
+            const isCurrent = genType === type;
+            // Check visibility (unlocked)
+            const index = GENERATOR_ORDER.indexOf(genType);
+            const prevType = index > 0 ? GENERATOR_ORDER[index - 1] : null;
+            const isVisible = index === 0 || (prevType && ((gameState[STATE_KEYS[prevType]] as Decimal).gt(0) || (gameState[STATE_KEYS[genType]] as Decimal).gt(0)));
 
-  // Cidadela
-  { id: 'citadel_eff_1', name: 'Torres de Balista', type: 'efficiency', generatorType: 'citadel', multiplier: 2, cost: 1000000000, description: 'Defesa absoluta permite erguer 2x mais catedrais.' },
-  { id: 'citadel_spd_1', name: 'Fossos Profundos', type: 'speed', generatorType: 'citadel', multiplier: 2, cost: 2500000000, description: 'Segurança agiliza a construção.' },
+            if (!isVisible) return null;
 
-  // Reino
-  { id: 'kingdom_eff_1', name: 'Jóias da Coroa', type: 'efficiency', generatorType: 'kingdom', multiplier: 2, cost: 10000000000, description: 'Prestígio unifica 2x mais cidadelas.' },
-  { id: 'kingdom_spd_1', name: 'Exército Imperial', type: 'speed', generatorType: 'kingdom', multiplier: 2, cost: 25000000000, description: 'Conquistas ocorrem 2x mais rápido.' },
-];
-
-// Info Data Structure
-const GENERATOR_INFO = {
-  peasant: {
-    name: "Camponês",
-    icon: PeasantIcon,
-    flavor: "Um trabalhador humilde e incansável. Com suas mãos calejadas, ele garante que o reino nunca passe fome.",
-    costAmount: PEASANT_COST,
-    costIcon: WheatIcon,
-    costColor: "text-harvest",
-    prodAmount: WHEAT_PER_HARVEST,
-    prodIcon: WheatIcon,
-    prodColor: "text-harvest",
-    duration: HARVEST_DURATION_MS / 1000,
-    colorClass: "text-harvest-dark",
-    totalLabel: "Colheita Vitalícia",
-    totalKey: "totalHarvested" as keyof GameState
-  },
-  mill: {
-    name: "Moinho de Vento",
-    icon: MillIcon,
-    flavor: "Uma maravilha da engenharia rústica. Suas pás giratórias atraem novos trabalhadores de terras distantes.",
-    costAmount: MILL_COST,
-    costIcon: PeasantIcon,
-    costColor: "text-harvest-dark",
-    prodAmount: PEASANTS_PER_MILL_CYCLE,
-    prodIcon: PeasantIcon,
-    prodColor: "text-harvest-dark",
-    duration: MILL_DURATION_MS / 1000,
-    colorClass: "text-sky-700",
-    totalLabel: "População Atraída",
-    totalKey: "totalPeasantsGenerated" as keyof GameState
-  },
-  stable: {
-    name: "Estábulo",
-    icon: StableIcon,
-    flavor: "O lar de bestas de carga fortes. A logística aprimorada facilita o transporte de materiais para novos moinhos.",
-    costAmount: STABLE_COST,
-    costIcon: MillIcon,
-    costColor: "text-sky-700",
-    prodAmount: MILLS_PER_STABLE_CYCLE,
-    prodIcon: MillIcon,
-    prodColor: "text-sky-700",
-    duration: STABLE_DURATION_MS / 1000,
-    colorClass: "text-emerald-700",
-    totalLabel: "Indústria Expandida",
-    totalKey: "totalMillsGenerated" as keyof GameState
-  },
-  guild: {
-    name: "Guilda de Comércio",
-    icon: GuildIcon,
-    flavor: "Uniões de artesãos e comerciantes que organizam a economia, financiando a construção de mais estábulos.",
-    costAmount: GUILD_COST,
-    costIcon: StableIcon,
-    costColor: "text-emerald-700",
-    prodAmount: STABLES_PER_GUILD_CYCLE,
-    prodIcon: StableIcon,
-    prodColor: "text-emerald-700",
-    duration: GUILD_DURATION_MS / 1000,
-    colorClass: "text-purple-700",
-    totalLabel: "Logística Financiada",
-    totalKey: "totalStablesGenerated" as keyof GameState
-  },
-  market: {
-    name: "Mercado Central",
-    icon: MarketIcon,
-    flavor: "O coração pulsante da troca de mercadorias. O fluxo de ouro permite a fundação de novas guildas.",
-    costAmount: MARKET_COST,
-    costIcon: GuildIcon,
-    costColor: "text-purple-700",
-    prodAmount: GUILDS_PER_MARKET_CYCLE,
-    prodIcon: GuildIcon,
-    prodColor: "text-purple-700",
-    duration: MARKET_DURATION_MS / 1000,
-    colorClass: "text-red-700",
-    totalLabel: "Comércio Gerado",
-    totalKey: "totalGuildsGenerated" as keyof GameState
-  },
-  castle: {
-    name: "Castelo Feudal",
-    icon: CastleIcon,
-    flavor: "A sede do poder local. Lordes e barões decretam a abertura de novos mercados em suas terras.",
-    costAmount: CASTLE_COST,
-    costIcon: MarketIcon,
-    costColor: "text-red-700",
-    prodAmount: MARKETS_PER_CASTLE_CYCLE,
-    prodIcon: MarketIcon,
-    prodColor: "text-red-700",
-    duration: CASTLE_DURATION_MS / 1000,
-    colorClass: "text-gray-600",
-    totalLabel: "Decretos Reais",
-    totalKey: "totalMarketsGenerated" as keyof GameState
-  },
-  cathedral: {
-    name: "Grande Catedral",
-    icon: CathedralIcon,
-    flavor: "Símbolo da fé divina. A influência religiosa unifica regiões, permitindo a construção de novos castelos.",
-    costAmount: CATHEDRAL_COST,
-    costIcon: CastleIcon,
-    costColor: "text-gray-600",
-    prodAmount: CASTLES_PER_CATHEDRAL_CYCLE,
-    prodIcon: CastleIcon,
-    prodColor: "text-gray-600",
-    duration: CATHEDRAL_DURATION_MS / 1000,
-    colorClass: "text-yellow-600",
-    totalLabel: "Fortalezas Abençoadas",
-    totalKey: "totalCastlesGenerated" as keyof GameState
-  },
-  citadel: {
-    name: "Cidadela Fortificada",
-    icon: CitadelIcon,
-    flavor: "Uma metrópole impenetrável. Sua proteção absoluta permite erguer catedrais cada vez maiores.",
-    costAmount: CITADEL_COST,
-    costIcon: CathedralIcon,
-    costColor: "text-yellow-600",
-    prodAmount: CATHEDRALS_PER_CITADEL_CYCLE,
-    prodIcon: CathedralIcon,
-    prodColor: "text-yellow-600",
-    duration: CITADEL_DURATION_MS / 1000,
-    colorClass: "text-stone-800",
-    totalLabel: "Templos Erguidos",
-    totalKey: "totalCathedralsGenerated" as keyof GameState
-  },
-  kingdom: {
-    name: "Reino Soberano",
-    icon: KingdomIcon,
-    flavor: "A unificação suprema de todas as terras. O conceito de nação expande as fronteiras, criando novas cidadelas.",
-    costAmount: KINGDOM_COST,
-    costIcon: CitadelIcon,
-    costColor: "text-stone-800",
-    prodAmount: CITADELS_PER_KINGDOM_CYCLE,
-    prodIcon: CitadelIcon,
-    prodColor: "text-stone-800",
-    duration: KINGDOM_DURATION_MS / 1000,
-    colorClass: "text-blue-900",
-    totalLabel: "Império Expandido",
-    totalKey: "totalCitadelsGenerated" as keyof GameState
-  }
+            return (
+              <button
+                key={genType}
+                onClick={() => onNavigate(genType)}
+                className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all border-2 relative overflow-hidden ${isCurrent ? 'bg-wood-700 text-parchment-100 border-wood-900 scale-110 shadow-lg z-10' : 'bg-parchment-100 border-transparent hover:bg-white hover:scale-105'}`}
+                title={genInfo.name}
+              >
+                {isCurrent && <div className="absolute inset-0 opacity-20 bg-[url('https://www.transparenttextures.com/patterns/wood-pattern.png')]"></div>}
+                {React.createElement(genInfo.icon, { className: isCurrent ? '' : genInfo.colorClass })}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
 };
 
-// Utility to format numbers
-const formatNumber = (num: number) => {
-  const n = Math.floor(num);
+const useDraggableScroll = () => {
+  const ref = useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const startY = useRef(0);
+  const scrollTop = useRef(0);
 
-  if (n < 1000000) {
-    return new Intl.NumberFormat('pt-BR').format(n);
-  }
+  const onMouseDown = (e: React.MouseEvent) => {
+    if (!ref.current) return;
+    setIsDragging(true);
+    startY.current = e.pageY;
+    scrollTop.current = ref.current.scrollTop;
+    document.body.style.cursor = 'grabbing';
+  };
 
-  const suffixes = [
-    { val: 1e63, suffix: 'Vg' },
-    { val: 1e60, suffix: 'Nod' },
-    { val: 1e57, suffix: 'Ocd' },
-    { val: 1e54, suffix: 'Spd' },
-    { val: 1e51, suffix: 'Sxd' },
-    { val: 1e48, suffix: 'Qid' },
-    { val: 1e45, suffix: 'Qad' },
-    { val: 1e42, suffix: 'Td' },
-    { val: 1e39, suffix: 'Dd' },
-    { val: 1e36, suffix: 'Ud' },
-    { val: 1e33, suffix: 'Dc' },
-    { val: 1e30, suffix: 'No' },
-    { val: 1e27, suffix: 'Oc' },
-    { val: 1e24, suffix: 'Sp' },
-    { val: 1e21, suffix: 'Sx' },
-    { val: 1e18, suffix: 'Qi' },
-    { val: 1e15, suffix: 'Qa' },
-    { val: 1e12, suffix: 'T' },
-    { val: 1e9, suffix: 'B' },
-    { val: 1e6, suffix: 'M' }
-  ];
+  const onMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging || !ref.current) return;
+    e.preventDefault();
+    const y = e.pageY;
+    const walk = (y - startY.current) * 1.5;
+    ref.current.scrollTop = scrollTop.current - walk;
+  };
 
-  for (const { val, suffix } of suffixes) {
-    if (n >= val) {
-      return (n / val).toLocaleString('en-US', { maximumFractionDigits: 2 }) + suffix;
+  const onMouseUp = () => {
+    setIsDragging(false);
+    document.body.style.cursor = 'default';
+  };
+
+  const onMouseLeave = () => {
+    if (isDragging) {
+      setIsDragging(false);
+      document.body.style.cursor = 'default';
     }
-  }
+  };
 
-  return n.toString();
+  return { ref, isDragging, events: { onMouseDown, onMouseMove, onMouseUp, onMouseLeave } };
 };
 
 export default function App() {
@@ -327,8 +240,44 @@ export default function App() {
       const saved = localStorage.getItem(SAVE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
+
+        // Re-hydrate Decimals
+        const hydrated: any = { ...parsed };
+        Object.keys(hydrated).forEach(key => {
+          if (typeof hydrated[key] === 'string' && !isNaN(parseFloat(hydrated[key])) && key !== 'upgrades') {
+            // Heuristic: if it looks like a number, try to convert to Decimal
+            // But wait, some keys are not Decimals (like upgrades).
+            // Better to use the INITIAL_STATE keys as reference.
+          }
+        });
+
+        // Safer approach: Iterate over INITIAL_STATE keys
+        Object.keys(INITIAL_STATE).forEach(key => {
+          const k = key as keyof GameState;
+          if (INITIAL_STATE[k] instanceof Decimal) {
+            if (parsed[k] !== undefined) {
+              hydrated[k] = new Decimal(parsed[k]);
+            } else {
+              hydrated[k] = new Decimal(INITIAL_STATE[k] as Decimal);
+            }
+          }
+        });
+
+        // Migration: Convert boolean upgrades to number (Rank 1)
+        if (parsed.upgrades) {
+          const migratedUpgrades: Record<string, number> = {};
+          Object.entries(parsed.upgrades).forEach(([key, val]) => {
+            if (typeof val === 'boolean') {
+              migratedUpgrades[key] = val ? 1 : 0;
+            } else {
+              migratedUpgrades[key] = val as number;
+            }
+          });
+          hydrated.upgrades = migratedUpgrades;
+        }
+
         // Merge with initial state to ensure new fields (like upgrades) exist
-        return { ...INITIAL_STATE, ...parsed };
+        return { ...INITIAL_STATE, ...hydrated };
       }
     } catch (e) {
       console.error("Erro ao carregar save:", e);
@@ -377,9 +326,9 @@ export default function App() {
     kingdom: 'kingdom'
   };
 
-  const [fpsLimit] = useState<FPSLimit>('vsync');
+  const [fpsLimit, setFpsLimit] = useState<FPSLimit>('vsync');
   const [actualFPS, setActualFPS] = useState(0);
-  const [showFPS, setShowFPS] = useState(true);
+  const [showFPS, setShowFPS] = useState(false);
   const framesRef = useRef(0);
   const lastTimeRef = useRef(performance.now());
   const loopRef = useRef<number | NodeJS.Timeout | null>(null);
@@ -387,76 +336,84 @@ export default function App() {
   const [buyMode, setBuyMode] = useState<BuyMode>('1');
   const [holdingBtn, setHoldingBtn] = useState<GeneratorType | null>(null);
   const [infoModal, setInfoModal] = useState<GeneratorType | null>(null);
+
   const [showSettings, setShowSettings] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Drag to Scroll Logic
+  const { ref: scrollContainerRef, isDragging, events: dragEvents } = useDraggableScroll();
+
+  // Fullscreen Logic
+  useEffect(() => {
+    const handleChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleChange);
+    return () => document.removeEventListener('fullscreenchange', handleChange);
+  }, []);
+
+  // Auto-enter fullscreen on first interaction
+  useEffect(() => {
+    const attemptFullscreen = () => {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {
+          // Ignore errors (likely blocked by browser policy if no gesture)
+        });
+      }
+    };
+
+    const listener = () => {
+      attemptFullscreen();
+      window.removeEventListener('click', listener);
+      window.removeEventListener('touchstart', listener);
+    };
+
+    window.addEventListener('click', listener);
+    window.addEventListener('touchstart', listener);
+
+    return () => {
+      window.removeEventListener('click', listener);
+      window.removeEventListener('touchstart', listener);
+    };
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(err => console.error(err));
+    } else {
+      document.exitFullscreen().catch(err => console.error(err));
+    }
+  };
 
   // Cost Feedback State
-  const [costFeedback, setCostFeedback] = useState<Record<string, { cost: number, visible: boolean }>>({});
+  const [costFeedback, setCostFeedback] = useState<Record<string, {
+    costs: { wheat: Decimal, workers: Decimal, prevTier: Decimal, prevTierKey: keyof GameState | null },
+    visible: boolean
+  }>>({});
   const lastFeedbackTimeRef = useRef<Record<string, number>>({});
-  const accumulatedCostRef = useRef<Record<string, number>>({});
+  const accumulatedCostRef = useRef<Record<string, { wheat: Decimal, workers: Decimal, prevTier: Decimal }>>({});
   const feedbackTimeoutRefs = useRef<Record<string, number>>({});
+  const lastWorkerTimeRef = useRef(Date.now());
 
-  const calculatePurchase = (type: GeneratorType, current: GameState) => {
-    let costPerUnit = 0;
-    let availableCurrency = 0;
 
-    switch (type) {
-      case 'peasant': costPerUnit = PEASANT_COST; availableCurrency = current.wheat; break;
-      case 'mill': costPerUnit = MILL_COST; availableCurrency = current.peasants; break;
-      case 'stable': costPerUnit = STABLE_COST; availableCurrency = current.mills; break;
-      case 'guild': costPerUnit = GUILD_COST; availableCurrency = current.stables; break;
-      case 'market': costPerUnit = MARKET_COST; availableCurrency = current.guilds; break;
-      case 'castle': costPerUnit = CASTLE_COST; availableCurrency = current.markets; break;
-      case 'cathedral': costPerUnit = CATHEDRAL_COST; availableCurrency = current.castles; break;
-      case 'citadel': costPerUnit = CITADEL_COST; availableCurrency = current.cathedrals; break;
-      case 'kingdom': costPerUnit = KINGDOM_COST; availableCurrency = current.citadels; break;
-    }
 
-    const maxAffordable = Math.floor(availableCurrency / costPerUnit);
-    let amount = 0;
 
-    if (buyMode === '1') {
-      amount = 1;
-    } else {
-      const percentage = parseFloat(buyMode) / 100;
-      amount = Math.max(1, Math.floor(maxAffordable * percentage));
-    }
-
-    if (amount > maxAffordable) amount = maxAffordable;
-    if (maxAffordable === 0) amount = 0;
-
-    return {
-      amount,
-      totalCost: amount * costPerUnit,
-      canAfford: amount > 0
-    };
-  };
-
-  const getUpgradesForType = (type: GeneratorType) => {
-    return UPGRADES_DATA.filter(u => u.generatorType === type);
-  };
-
-  const calculateMultipliers = (type: GeneratorType, upgrades: Record<string, boolean>) => {
-    const relevantUpgrades = getUpgradesForType(type);
-    let speedMult = 1;
-    let effMult = 1;
-
-    relevantUpgrades.forEach(u => {
-      if (upgrades[u.id]) {
-        if (u.type === 'speed') speedMult *= u.multiplier;
-        if (u.type === 'efficiency') effMult *= u.multiplier;
-      }
-    });
-
-    return { speedMult, effMult };
-  };
 
   const buyUpgrade = (upgrade: Upgrade) => {
     setGameState(prev => {
-      if (prev.wheat < upgrade.cost) return prev;
+      const currentRank = prev.upgrades[upgrade.id] || 0;
+      const maxRank = upgrade.maxRank || 10;
+
+      if (currentRank >= maxRank) return prev;
+
+      const cost = getUpgradeCost(upgrade, currentRank);
+
+      if (prev.wheat.lt(cost)) return prev;
+
       return {
         ...prev,
-        wheat: prev.wheat - upgrade.cost,
-        upgrades: { ...prev.upgrades, [upgrade.id]: true }
+        wheat: prev.wheat.sub(cost),
+        upgrades: { ...prev.upgrades, [upgrade.id]: currentRank + 1 }
       };
     });
   };
@@ -497,28 +454,31 @@ export default function App() {
         // Helper for production logic
         const processGenerator = (
           type: GeneratorType,
-          count: number,
+          count: Decimal,
           currentProg: number,
           baseDuration: number,
           baseOutput: number,
-          targetResource: keyof GameState,
-          totalResource: keyof GameState
+          targetResource: Exclude<keyof GameState, 'upgrades'>,
+          totalResource: Exclude<keyof GameState, 'upgrades'>
         ): number => {
-          if (count <= 0) return currentProg;
+          if (count.lte(0)) return currentProg;
 
           const { speedMult, effMult } = calculateMultipliers(type, state.upgrades || {});
           const duration = baseDuration / speedMult;
-          const output = baseOutput * effMult;
+          const output = new Decimal(baseOutput).mul(effMult);
 
           let nextProg = currentProg + ((dt / duration) * 100);
           if (nextProg >= 100) {
             const cycles = Math.floor(nextProg / 100);
             nextProg = nextProg % 100;
-            const produced = count * output * cycles;
+            const produced = count.mul(output).mul(cycles);
 
             // Queue state update
-            stateUpdates[targetResource] = (stateUpdates[targetResource] || state[targetResource]) + produced;
-            stateUpdates[totalResource] = (stateUpdates[totalResource] || state[totalResource]) + produced;
+            const currentTarget = stateUpdates[targetResource] || state[targetResource] as Decimal;
+            const currentTotal = stateUpdates[totalResource] || state[totalResource] as Decimal;
+
+            stateUpdates[targetResource] = currentTarget.add(produced) as any;
+            stateUpdates[totalResource] = currentTotal.add(produced) as any;
             hasUpdates = true;
           }
           return nextProg;
@@ -555,6 +515,23 @@ export default function App() {
           setGameState(curr => ({ ...curr, ...stateUpdates }));
         }
 
+        // Passive Worker Generation (1 per second) - Wall Clock Logic
+        const nowTime = Date.now();
+        const timeDiff = nowTime - lastWorkerTimeRef.current;
+
+        if (timeDiff >= 1000) {
+          const secondsPassed = Math.floor(timeDiff / 1000);
+          if (secondsPassed > 0) {
+            lastWorkerTimeRef.current += secondsPassed * 1000;
+
+            setGameState(curr => ({
+              ...curr,
+              workers: curr.workers.add(secondsPassed),
+              totalWorkersGenerated: curr.totalWorkersGenerated.add(secondsPassed)
+            }));
+          }
+        }
+
         return updates;
       });
 
@@ -577,7 +554,7 @@ export default function App() {
   }, [fpsLimit]);
 
   // Handle Cost Feedback Logic
-  const showCostFeedback = (type: GeneratorType, cost: number) => {
+  const showCostFeedback = (type: GeneratorType, costs: { wheat: Decimal, workers: Decimal, prevTier: Decimal, prevTierKey: keyof GameState | null }) => {
     const now = Date.now();
     const lastUpdate = lastFeedbackTimeRef.current[type] || 0;
 
@@ -586,12 +563,14 @@ export default function App() {
       clearTimeout(feedbackTimeoutRefs.current[type]);
     }
 
-    let newTotal = cost;
+    let newTotal = { ...costs };
 
     // Check if within 2 seconds window to accumulate
     if (now - lastUpdate < 2000) {
-      const currentAccumulated = accumulatedCostRef.current[type] || 0;
-      newTotal = currentAccumulated + cost;
+      const currentAccumulated = accumulatedCostRef.current[type] || { wheat: new Decimal(0), workers: new Decimal(0), prevTier: new Decimal(0) };
+      newTotal.wheat = currentAccumulated.wheat.add(costs.wheat);
+      newTotal.workers = currentAccumulated.workers.add(costs.workers);
+      newTotal.prevTier = currentAccumulated.prevTier.add(costs.prevTier);
     }
 
     // Update refs
@@ -601,7 +580,7 @@ export default function App() {
     // Update state to show feedback
     setCostFeedback(prev => ({
       ...prev,
-      [type]: { cost: newTotal, visible: true }
+      [type]: { costs: newTotal, visible: true }
     }));
 
     // Set new hide timer (2 seconds)
@@ -614,27 +593,39 @@ export default function App() {
   };
 
   const executeBuy = (type: GeneratorType) => {
+    // Calculate based on current state (ref is safe for event handlers/intervals in this context)
+    const current = stateRef.current;
+    const { amount, costs, canAfford } = calculatePurchase(type, current, buyMode);
+
+    if (!canAfford) return;
+
+    // Trigger feedback once
+    showCostFeedback(type, costs);
+
+    // Update state
     setGameState((curr) => {
-      const { amount, totalCost, canAfford } = calculatePurchase(type, curr);
-
-      if (!canAfford) return curr;
-
-      // Trigger feedback
-      showCostFeedback(type, totalCost);
+      // Re-verify affordability
+      const check = calculatePurchase(type, curr, buyMode);
+      if (!check.canAfford) return curr;
 
       const nextState = { ...curr };
 
-      switch (type) {
-        case 'peasant': nextState.wheat -= totalCost; nextState.peasants += amount; break;
-        case 'mill': nextState.peasants -= totalCost; nextState.mills += amount; break;
-        case 'stable': nextState.mills -= totalCost; nextState.stables += amount; break;
-        case 'guild': nextState.stables -= totalCost; nextState.guilds += amount; break;
-        case 'market': nextState.guilds -= totalCost; nextState.markets += amount; break;
-        case 'castle': nextState.markets -= totalCost; nextState.castles += amount; break;
-        case 'cathedral': nextState.castles -= totalCost; nextState.cathedrals += amount; break;
-        case 'citadel': nextState.cathedrals -= totalCost; nextState.citadels += amount; break;
-        case 'kingdom': nextState.citadels -= totalCost; nextState.kingdoms += amount; break;
+      // Deduct costs
+      nextState.wheat = nextState.wheat.sub(check.costs.wheat);
+      nextState.workers = nextState.workers.sub(check.costs.workers);
+
+      if (check.costs.prevTierKey) {
+        // We need to cast to Decimal because TS might not know for sure, but our logic guarantees it
+        const prevKey = check.costs.prevTierKey as keyof GameState;
+        if (nextState[prevKey] instanceof Decimal) {
+          (nextState[prevKey] as Decimal) = (nextState[prevKey] as Decimal).sub(check.costs.prevTier);
+        }
       }
+
+      // Add purchased amount
+      const stateKey = STATE_KEYS[type];
+      (nextState[stateKey] as Decimal) = (nextState[stateKey] as Decimal).add(check.amount);
+
       return nextState;
     });
   };
@@ -649,7 +640,7 @@ export default function App() {
 
   const handlePressStart = (type: GeneratorType, e: React.MouseEvent | React.TouchEvent) => {
     // Check if affordable before executing to avoid visual glitches
-    const { canAfford } = calculatePurchase(type, gameState);
+    const { canAfford } = calculatePurchase(type, gameState, buyMode);
 
     if (canAfford) {
       executeBuy(type);
@@ -667,239 +658,9 @@ export default function App() {
     }
   };
 
-  // UI Helper for Generator Cards
-  const renderGeneratorCard = (type: GeneratorType) => {
-    const info = GENERATOR_INFO[type];
-    const stateKey = STATE_KEYS[type];
-    const progressKey = PROGRESS_KEYS[type];
-    const count = gameState[stateKey];
-    const progressValue = progress[progressKey];
-    const purchaseData = calculatePurchase(type, gameState);
 
-    // Multipliers for display
-    const { speedMult, effMult } = calculateMultipliers(type, gameState.upgrades || {});
-    const currentProd = info.prodAmount * effMult;
 
-    // Cost Feedback Data
-    const feedback = costFeedback[type];
 
-    // Check Automation Status
-    const currentIndex = GENERATOR_ORDER.indexOf(type);
-    const nextTierType = currentIndex < GENERATOR_ORDER.length - 1 ? GENERATOR_ORDER[currentIndex + 1] : null;
-    const nextTierCount = nextTierType ? gameState[STATE_KEYS[nextTierType]] : 0;
-    const isAutomated = nextTierCount >= AUTOMATION_THRESHOLD;
-
-    let actualMissing = 0;
-    if (!purchaseData.canAfford) {
-      let available = 0;
-      switch (type) {
-        case 'peasant': available = gameState.wheat; break;
-        case 'mill': available = gameState.peasants; break;
-        case 'stable': available = gameState.mills; break;
-        case 'guild': available = gameState.stables; break;
-        case 'market': available = gameState.guilds; break;
-        case 'castle': available = gameState.markets; break;
-        case 'cathedral': available = gameState.castles; break;
-        case 'citadel': available = gameState.cathedrals; break;
-        case 'kingdom': available = gameState.citadels; break;
-      }
-      actualMissing = Math.max(0, info.costAmount - available);
-    }
-
-    const isAffordable = purchaseData.canAfford;
-
-    return (
-      <div key={type} className="flex flex-col gap-3 h-56">
-        <div className="relative bg-white/40 rounded-xl p-6 border border-parchment-border shadow-sm overflow-hidden flex-1 flex flex-col justify-center">
-          <div className="absolute inset-0 opacity-50 bg-[url('https://www.transparenttextures.com/patterns/rough-cloth.png')]"></div>
-
-          <div className="absolute bottom-[-10px] right-[-15px] text-wood-900/5 text-9xl pointer-events-none transform -rotate-12 z-0">
-            {React.createElement(info.icon)}
-          </div>
-
-          <div className="relative z-10 flex flex-col justify-center h-full">
-            <div className="mb-3 text-sm font-bold uppercase tracking-wider text-wood-700 flex items-center gap-2">
-              {React.createElement(info.icon, { className: 'text-xl ' + info.colorClass })}
-              {info.name}s
-            </div>
-
-            <div className="h-6 bg-wood-300/30 rounded-full p-[4px] shadow-inner mb-4">
-              <div
-                className={`h-full rounded-full border shadow-[inset_0_1px_0_rgba(255,255,255,0.4)] relative overflow-hidden transition-none ${info.colorClass.replace('text-', 'bg-')} ${info.colorClass.replace('text-', 'border-').replace('700', '400')}`}
-                style={{ width: `${progressValue}%` }}
-              >
-                <div className="absolute inset-0 opacity-20 bg-[url('https://www.transparenttextures.com/patterns/wood-pattern.png')]"></div>
-              </div>
-            </div>
-
-            <div className="flex justify-between items-center h-6">
-              <span className="bg-parchment-100 px-3 py-1 rounded border border-parchment-border shadow-sm text-wood-800 flex items-center gap-2 text-xs font-bold uppercase tracking-wide">
-                <i className="fa-solid fa-cubes text-wood-600" />
-                {formatNumber(count)}
-              </span>
-
-              {/* Central Cost Feedback */}
-              <div className="flex-1 flex justify-center">
-                {feedback && (
-                  <div className={`transition-opacity duration-300 flex items-center gap-1 font-bold text-xs ${feedback.visible ? 'opacity-100' : 'opacity-0'}`}>
-                    <span className="text-red-700">-{formatNumber(feedback.cost)}</span>
-                    {React.createElement(info.costIcon, { className: info.costColor + " text-xs" })}
-                  </div>
-                )}
-              </div>
-
-              <span className={`bg-parchment-100 px-3 py-1 rounded border border-parchment-border shadow-sm flex items-center gap-1 text-xs font-bold ${effMult > 1 ? 'text-emerald-700' : 'text-wood-800'}`}>
-                {count > 0 ? `+${formatNumber(count * currentProd)}` : '0'}
-                {React.createElement(info.prodIcon, { className: info.prodColor })}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex gap-2 h-10 shrink-0">
-          {isAutomated ? (
-            <div className="flex-1 rounded-lg bg-gradient-to-b from-yellow-300 to-yellow-500 border-2 border-yellow-700 shadow-md flex items-center justify-center gap-2 text-yellow-900 font-heading text-xs font-bold uppercase tracking-widest select-none cursor-default relative overflow-hidden">
-              <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/wood-pattern.png')] opacity-10"></div>
-              <i className="fa-solid fa-certificate text-sm"></i>
-              Autossuficiente
-            </div>
-          ) : (
-            <button
-              onMouseDown={(e) => handlePressStart(type, e)}
-              onMouseUp={handlePressEnd}
-              onMouseLeave={handlePressEnd}
-              onTouchStart={(e) => handlePressStart(type, e)}
-              onTouchEnd={handlePressEnd}
-              disabled={!isAffordable && holdingBtn !== type}
-              className={`flex-1 rounded-lg font-heading text-sm font-bold tracking-widest uppercase transition-all duration-200 relative overflow-hidden shadow-md group select-none flex flex-col items-center justify-center h-full
-                ${isAffordable
-                  ? 'bg-wood-700 text-parchment-100 border-2 border-wood-900 hover:bg-wood-800 hover:shadow-lg active:translate-y-[1px]'
-                  : 'bg-wood-300/50 text-wood-500 border-2 border-wood-300 cursor-not-allowed'
-                }`}
-            >
-              {isAffordable && (
-                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/wood-pattern.png')] opacity-10"></div>
-              )}
-              <span className="relative z-10 drop-shadow-md flex items-center gap-2 justify-center w-full">
-                {isAffordable
-                  ? `${type === 'peasant' ? 'Contratar' : 'Construir'}${purchaseData.amount > 1 ? ` (+${formatNumber(purchaseData.amount)})` : ''}`
-                  : (
-                    <>
-                      {formatNumber(actualMissing)} {React.createElement(info.costIcon, { className: "mb-0.5" })}
-                    </>
-                  )
-                }
-              </span>
-            </button>
-          )}
-
-          <button
-            onClick={() => setInfoModal(type)}
-            className="w-10 h-full bg-wood-700 text-parchment-100 rounded-lg border-2 border-wood-900 shadow-md flex items-center justify-center hover:bg-wood-800 active:translate-y-[1px] transition-all relative overflow-hidden"
-            title="Informações"
-          >
-            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/wood-pattern.png')] opacity-10"></div>
-            <i className="fa-solid fa-exclamation text-sm drop-shadow-md relative z-10"></i>
-          </button>
-        </div>
-      </div>
-    );
-  };
-
-  const renderInfoModal = () => {
-    if (!infoModal) return null;
-    const info = GENERATOR_INFO[infoModal];
-    const upgrades = getUpgradesForType(infoModal);
-    const { speedMult, effMult } = calculateMultipliers(infoModal, gameState.upgrades || {});
-
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-wood-900/80 backdrop-blur-sm animate-in fade-in duration-200">
-        <div className="w-full max-w-4xl bg-parchment-200 rounded-lg shadow-2xl border-4 border-wood-500 relative overflow-hidden flex flex-col max-h-[90vh]">
-          <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/wood-pattern.png')] pointer-events-none"></div>
-          <button onClick={() => setInfoModal(null)} className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center text-wood-700 hover:text-wood-900 z-20"><i className="fa-solid fa-xmark text-xl"></i></button>
-          <div className="bg-parchment-300/50 p-6 text-center border-b border-wood-300/30 shrink-0">
-            <div className={`text-4xl mb-3 ${info.colorClass}`}>{React.createElement(info.icon)}</div>
-            <h2 className="font-heading text-2xl text-wood-900">{info.name}</h2>
-          </div>
-
-          <div className="p-6 overflow-y-auto custom-scrollbar">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {/* Left Column: Stats */}
-              <div className="flex flex-col gap-6">
-                <p className="italic text-wood-700 font-serif text-center leading-relaxed">"{info.flavor}"</p>
-
-                <div className="bg-white/40 p-4 rounded border border-parchment-border">
-                  <div className="flex justify-between items-center border-b border-wood-300/20 pb-2 mb-2">
-                    <span className="font-bold text-wood-800 text-xs uppercase tracking-wider">Custo Base</span>
-                    <span className="font-heading text-wood-900 flex items-center gap-2">{info.costAmount}{React.createElement(info.costIcon, { className: `text-lg ${info.costColor}` })}</span>
-                  </div>
-                  <div className="flex justify-between items-center border-b border-wood-300/20 pb-2 mb-2">
-                    <span className="font-bold text-wood-800 text-xs uppercase tracking-wider">Produção</span>
-                    <span className="font-heading text-wood-900 flex items-center gap-2">
-                      <span className={effMult > 1 ? 'text-emerald-700 font-bold' : ''}>{info.prodAmount * effMult}</span>
-                      {React.createElement(info.prodIcon, { className: `text-lg ${info.prodColor}` })}
-                      <span className={`text-sm ml-1 font-body font-bold ${speedMult > 1 ? 'text-emerald-700' : 'text-wood-600'}`}>/ {info.duration / speedMult}s</span>
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="font-bold text-wood-800 text-xs uppercase tracking-wider">{info.totalLabel}</span>
-                    <span className="font-heading text-wood-900 flex items-center gap-2">{formatNumber(gameState[info.totalKey])}{React.createElement(info.prodIcon, { className: `text-lg ${info.prodColor}` })}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Right Column: Upgrades */}
-              <div className="flex flex-col gap-4 relative">
-                {/* Divider for desktop */}
-                <div className="hidden md:block absolute left-[-1rem] top-0 bottom-0 w-px bg-wood-300/30"></div>
-
-                <h3 className="font-heading text-wood-900 text-center text-lg uppercase tracking-wider">Tecnologias</h3>
-                {upgrades.length > 0 ? (
-                  <div className="space-y-3">
-                    {upgrades.map(u => {
-                      const isBought = gameState.upgrades?.[u.id];
-                      const canAfford = gameState.wheat >= u.cost;
-
-                      return (
-                        <div key={u.id} className={`p-3 rounded border flex flex-col gap-2 ${isBought ? 'bg-emerald-100/50 border-emerald-300' : 'bg-white/40 border-parchment-border'}`}>
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <div className="font-bold text-wood-900 text-sm">{u.name}</div>
-                              <div className="text-[10px] text-wood-600 leading-tight">{u.description}</div>
-                            </div>
-                            {isBought ? (
-                              <i className="fa-solid fa-check text-emerald-600"></i>
-                            ) : (
-                              <div className="flex items-center gap-1 font-heading text-sm text-wood-800">
-                                {u.cost} <WheatIcon className="text-harvest" />
-                              </div>
-                            )}
-                          </div>
-                          {!isBought && (
-                            <button
-                              onClick={() => buyUpgrade(u)}
-                              disabled={!canAfford}
-                              className={`w-full py-1 text-[10px] uppercase font-bold tracking-wider rounded border transition-all ${canAfford ? 'bg-wood-700 text-parchment-100 border-wood-900 hover:bg-wood-800' : 'bg-wood-300 text-wood-500 border-wood-400 cursor-not-allowed'}`}
-                            >
-                              Pesquisar
-                            </button>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
-                ) : (
-                  <p className="text-center text-wood-500 italic text-sm">Nenhuma tecnologia disponível.</p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="p-4 bg-wood-800 text-center shrink-0"><button onClick={() => setInfoModal(null)} className="px-6 py-2 bg-wood-600 text-parchment-100 rounded font-heading border border-wood-500 hover:bg-wood-500 transition-colors uppercase tracking-widest text-sm">Fechar</button></div>
-        </div>
-      </div>
-    );
-  };
 
   return (
     <div className="h-screen w-screen font-body relative overflow-hidden bg-wood-900">
@@ -920,9 +681,9 @@ export default function App() {
                 <span className="font-bold text-wood-900 text-sm uppercase tracking-wider">Monitor de FPS</span>
                 <button onClick={() => setShowFPS(!showFPS)} className={`px-4 py-1.5 rounded font-heading text-sm border-2 transition-all shadow-sm ${showFPS ? 'bg-wood-700 text-parchment-100 border-wood-900' : 'bg-parchment-100 text-wood-500 border-wood-300'}`}>{showFPS ? 'LIGADO' : 'DESLIGADO'}</button>
               </div>
-              <div className="flex flex-col gap-2 bg-white/40 p-4 rounded border border-parchment-border">
-                <span className="font-bold text-wood-900 text-sm uppercase tracking-wider text-center mb-2">Dados do Jogo</span>
-                <button onClick={handleResetGame} className="w-full px-4 py-2 bg-red-800 text-parchment-100 rounded font-heading text-sm border-2 border-red-900 hover:bg-red-700 transition-colors uppercase tracking-widest shadow-sm">Apagar Progresso</button>
+              <div className="flex items-center justify-between bg-white/40 p-4 rounded border border-parchment-border">
+                <span className="font-bold text-wood-900 text-sm uppercase tracking-wider">Limite de FPS (VSync)</span>
+                <button onClick={() => setFpsLimit(prev => prev === 'vsync' ? 'unlimited' : 'vsync')} className={`px-4 py-1.5 rounded font-heading text-sm border-2 transition-all shadow-sm ${fpsLimit === 'vsync' ? 'bg-wood-700 text-parchment-100 border-wood-900' : 'bg-parchment-100 text-wood-500 border-wood-300'}`}>{fpsLimit === 'vsync' ? 'LIGADO' : 'DESLIGADO'}</button>
               </div>
             </div>
             <div className="p-4 bg-wood-800 text-center"><button onClick={() => setShowSettings(false)} className="px-6 py-2 bg-wood-600 text-parchment-100 rounded font-heading border border-wood-500 hover:bg-wood-500 transition-colors uppercase tracking-widest text-sm">Fechar</button></div>
@@ -930,11 +691,29 @@ export default function App() {
         </div>
       )}
 
-      {renderInfoModal()}
+      {infoModal && (
+        <InfoModal
+          type={infoModal}
+          onClose={() => setInfoModal(null)}
+          onNavigate={(t) => setInfoModal(t)}
+          gameState={gameState}
+          buyUpgrade={buyUpgrade}
+        />
+      )}
 
       <div className="relative z-10 w-full h-full bg-parchment-200 overflow-hidden select-none flex flex-col">
         <header className="pt-6 pb-4 px-8 text-center bg-parchment-300/50 border-b border-wood-300/30 relative shrink-0">
-          <button onClick={() => setShowSettings(true)} className="absolute top-4 right-4 text-wood-700 hover:text-wood-900 transition-colors"><i className="fa-solid fa-gear text-lg"></i></button>
+          <div className="absolute top-4 right-4 flex gap-4 z-50">
+            <button onClick={toggleFullscreen} className="text-wood-700 hover:text-wood-900 transition-colors" title={isFullscreen ? "Sair da Tela Cheia" : "Tela Cheia"}>
+              <i className={`fa-solid ${isFullscreen ? 'fa-compress' : 'fa-expand'} text-lg`}></i>
+            </button>
+            <button onClick={handleResetGame} className="text-red-700 hover:text-red-900 transition-colors" title="Apagar Progresso (Reset)">
+              <i className="fa-solid fa-trash text-lg"></i>
+            </button>
+            <button onClick={() => setShowSettings(true)} className="text-wood-700 hover:text-wood-900 transition-colors" title="Configurações">
+              <i className="fa-solid fa-gear text-lg"></i>
+            </button>
+          </div>
           <div className="absolute top-2 left-1/2 -translate-x-1/2 opacity-20 text-wood-900"><i className="fa-solid fa-crown text-2xl"></i></div>
           <h1 className="text-4xl md:text-5xl font-heading text-wood-900 drop-shadow-sm mb-1 tracking-tight">Fantasia Medieval</h1>
           <p className="text-sm font-bold text-wood-500 uppercase tracking-widest text-[0.65rem]">Gestão Feudal</p>
@@ -943,9 +722,15 @@ export default function App() {
         <div className="border-b border-wood-300/30 bg-parchment-100/50 shrink-0">
           <div className="p-4 flex flex-col items-center justify-center">
             <span className="text-wood-500 text-[10px] font-bold uppercase tracking-widest mb-1">Estoque Real</span>
-            <div className="flex items-center gap-3 text-wood-900">
-              <WheatIcon className="text-3xl text-harvest" />
-              <span className="text-5xl font-heading leading-none">{formatNumber(gameState.wheat)}</span>
+            <div className="flex items-center justify-center gap-8 w-full">
+              <div className="flex items-center gap-3 text-wood-900">
+                <WheatIcon className="text-3xl text-harvest shrink-0" />
+                <span className="text-5xl font-heading leading-none tabular-nums whitespace-nowrap">{formatNumber(gameState.wheat)}</span>
+              </div>
+              <div className="flex items-center gap-2 text-wood-800" title="Trabalhadores (Gerados 1/s)">
+                <WorkerIcon className="text-2xl" />
+                <span className="text-3xl font-heading leading-none tabular-nums whitespace-nowrap">{formatNumber(gameState.workers)}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -956,15 +741,32 @@ export default function App() {
           </div>
         </div>
 
-        <div className="flex-1 p-10 bg-parchment-300 shadow-inner grid grid-cols-1 lg:grid-cols-3 gap-10 overflow-y-auto">
+        <div
+          ref={scrollContainerRef}
+          {...dragEvents}
+          className={`flex-1 p-6 bg-parchment-300 shadow-inner grid grid-cols-1 lg:grid-cols-3 gap-6 overflow-y-auto ${isDragging ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
+        >
           {GENERATOR_ORDER.map((type, index) => {
             const prevType = index > 0 ? GENERATOR_ORDER[index - 1] : null;
             // Visible if: It's the first one OR we have the previous one OR we already own the current one
-            const isVisible = index === 0 || (prevType && (gameState[STATE_KEYS[prevType]] > 0 || gameState[STATE_KEYS[type]] > 0));
+            const isVisible = index === 0 || (prevType && ((gameState[STATE_KEYS[prevType]] as Decimal).gt(0) || (gameState[STATE_KEYS[type]] as Decimal).gt(0)));
 
             if (!isVisible) return null;
 
-            return renderGeneratorCard(type);
+            return (
+              <GeneratorCard
+                key={type}
+                type={type}
+                gameState={gameState}
+                progressValue={progress[PROGRESS_KEYS[type]]}
+                buyMode={buyMode}
+                holdingBtn={holdingBtn}
+                costFeedback={costFeedback[type]}
+                setInfoModal={setInfoModal}
+                handlePressStart={handlePressStart}
+                handlePressEnd={handlePressEnd}
+              />
+            );
           })}
         </div>
 

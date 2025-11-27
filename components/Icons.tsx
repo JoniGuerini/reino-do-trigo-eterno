@@ -8,6 +8,10 @@ export const PeasantIcon = ({ className }: { className?: string }) => (
   <i className={`fa-solid fa-person-digging ${className}`} aria-hidden="true" />
 );
 
+export const WorkerIcon = ({ className }: { className?: string }) => (
+  <i className={`fa-solid fa-hammer ${className}`} aria-hidden="true" />
+);
+
 export const ScrollIcon = ({ className }: { className?: string }) => (
   <i className={`fa-solid fa-scroll ${className}`} aria-hidden="true" />
 );

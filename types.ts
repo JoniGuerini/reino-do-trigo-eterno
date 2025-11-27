@@ -1,27 +1,35 @@
+import Decimal from 'break_infinity.js';
+
 export interface GameState {
-  wheat: number;
-  peasants: number;
-  mills: number;
-  stables: number;
-  guilds: number;
-  markets: number;
-  castles: number;
-  cathedrals: number;
-  citadels: number;
-  kingdoms: number;
+  // Recursos
+  wheat: Decimal;
+  workers: Decimal;
 
-  totalHarvested: number;         // Trigo
-  totalPeasantsGenerated: number; // Camponeses
-  totalMillsGenerated: number;    // Moinhos
-  totalStablesGenerated: number;  // Estábulos
-  totalGuildsGenerated: number;   // Guildas
-  totalMarketsGenerated: number;  // Mercados
-  totalCastlesGenerated: number;  // Castelos
-  totalCathedralsGenerated: number; // Catedrais
-  totalCitadelsGenerated: number; // Cidadelas
-  totalKingdomsGenerated: number; // Reinos (Gerado por nada ainda/Click futuro ou fim de jogo)
+  // Geradores (Quantidade)
+  peasants: Decimal;
+  mills: Decimal;
+  stables: Decimal;
+  guilds: Decimal;
+  markets: Decimal;
+  castles: Decimal;
+  cathedrals: Decimal;
+  citadels: Decimal;
+  kingdoms: Decimal;
 
-  upgrades: Record<string, boolean>; // IDs das melhorias compradas
+  // Estatísticas Totais (para conquistas/multiplicadores futuros)
+  totalHarvested: Decimal;
+  totalWorkersGenerated: Decimal;
+  totalPeasantsGenerated: Decimal;
+  totalMillsGenerated: Decimal;
+  totalStablesGenerated: Decimal;
+  totalGuildsGenerated: Decimal;
+  totalMarketsGenerated: Decimal;
+  totalCastlesGenerated: Decimal;
+  totalCathedralsGenerated: Decimal;
+  totalCitadelsGenerated: Decimal;
+  totalKingdomsGenerated: Decimal;
+
+  upgrades: Record<string, number>; // IDs das melhorias compradas -> Rank atual
 }
 
 export enum GameAction {
