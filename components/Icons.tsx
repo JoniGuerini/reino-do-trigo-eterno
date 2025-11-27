@@ -53,3 +53,31 @@ export const CitadelIcon = ({ className }: { className?: string }) => (
 export const KingdomIcon = ({ className }: { className?: string }) => (
   <i className={`fa-solid fa-crown ${className}`} aria-hidden="true" />
 );
+
+export const EmpireIcon = ({ className }: { className?: string }) => (
+  <i className={`fa-solid fa-chess-king ${className}`} aria-hidden="true" />
+);
+
+export const DynastyIcon = ({ className }: { className?: string }) => (
+  <i className={`fa-solid fa-dragon ${className}`} aria-hidden="true" />
+);
+
+export const PantheonIcon = ({ className }: { className?: string }) => (
+  <i className={`fa-solid fa-landmark-dome ${className}`} aria-hidden="true" />
+);
+
+export const PlaneIcon = ({ className }: { className?: string }) => (
+  <i className={`fa-solid fa-layer-group ${className}`} aria-hidden="true" />
+);
+
+export const GalaxyIcon = ({ className }: { className?: string }) => (
+  <i className={`fa-solid fa-sun ${className}`} aria-hidden="true" />
+);
+
+export const UniverseIcon = ({ className }: { className?: string }) => (
+  <i className={`fa-solid fa-hourglass-half ${className}`} aria-hidden="true" />
+);
+
+export const MultiverseIcon = ({ className }: { className?: string }) => (
+  <i className={`fa-solid fa-infinity ${className}`} aria-hidden="true" />
+);

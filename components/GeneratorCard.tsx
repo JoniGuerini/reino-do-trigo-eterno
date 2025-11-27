@@ -1,8 +1,8 @@
 import React from 'react';
 import Decimal from 'break_infinity.js';
-import { GameState } from '../types';
+import { GameState, GeneratorType } from '../types';
 import {
-    GeneratorType, BuyMode, GENERATOR_ORDER, STATE_KEYS, AUTOMATION_THRESHOLD,
+    BuyMode, GENERATOR_ORDER, STATE_KEYS, AUTOMATION_THRESHOLD,
     GENERATOR_INFO, calculateMultipliers, calculatePurchase, formatNumber
 } from '../gameData';
 import { WorkerIcon, WheatIcon } from './Icons';
@@ -36,7 +36,7 @@ const GeneratorCard: React.FC<GeneratorCardProps> = React.memo(({
     const purchaseData = calculatePurchase(type, gameState, buyMode);
 
     // Multipliers for display
-    const { speedMult, effMult } = calculateMultipliers(type, gameState.upgrades || {});
+    const { speedMult, effMult } = calculateMultipliers(type, gameState.unlockedSkills || []);
     const currentProd = info.prodAmount.mul(effMult);
     const currentDuration = info.duration / speedMult;
     const isFast = currentDuration < 0.5 && count.gt(0);
@@ -54,7 +54,7 @@ const GeneratorCard: React.FC<GeneratorCardProps> = React.memo(({
 
     return (
         <div className="flex flex-col gap-1 h-40">
-            <div className="relative bg-white/40 rounded-xl p-3 border border-parchment-border shadow-sm overflow-hidden flex-1 flex flex-col justify-center">
+            <div className="relative bg-parchment-100 rounded-xl p-3 border border-parchment-border shadow-sm overflow-hidden flex-1 flex flex-col justify-center">
                 <div className="absolute inset-0 opacity-50 bg-[url('https://www.transparenttextures.com/patterns/rough-cloth.png')]"></div>
 
                 <div className="absolute bottom-[-10px] right-[-15px] text-wood-900/5 text-9xl pointer-events-none transform -rotate-12 z-0">
@@ -64,9 +64,18 @@ const GeneratorCard: React.FC<GeneratorCardProps> = React.memo(({
                 <div className="relative z-10 flex flex-col justify-center h-full gap-2">
                     {/* Header & Cost Group */}
                     <div className="flex flex-col gap-0.5">
-                        <div className="text-sm font-bold uppercase tracking-wider text-wood-700 flex items-center gap-2">
-                            {React.createElement(info.icon, { className: 'text-xl ' + info.colorClass })}
-                            {type === 'peasant' ? 'Camponeses' : info.name + (info.name.endsWith('s') ? '' : 's')}
+                        <div className="flex justify-between items-start w-full">
+                            <div className="text-sm font-bold uppercase tracking-wider text-wood-700 flex items-center gap-2">
+                                {React.createElement(info.icon, { className: 'text-xl ' + info.colorClass })}
+                                {type === 'peasant' ? 'Camponeses' : info.name + (info.name.endsWith('s') ? '' : 's')}
+                            </div>
+                            <button
+                                onClick={() => setInfoModal(type)}
+                                className="text-amber-800 hover:text-amber-600 transition-colors w-6 h-6 flex items-center justify-center"
+                                title="Informações"
+                            >
+                                <i className="fa-solid fa-exclamation text-sm"></i>
+                            </button>
                         </div>
 
                         {/* Cost Display (Static Only) */}
@@ -92,8 +101,12 @@ const GeneratorCard: React.FC<GeneratorCardProps> = React.memo(({
                     {/* Progress Bar */}
                     <div className="h-5 bg-wood-300/30 rounded-full p-[3px] shadow-inner shrink-0">
                         <div
-                            className={`h-full rounded-full border shadow-[inset_0_1px_0_rgba(255,255,255,0.4)] relative overflow-hidden transition-none ${info.colorClass.replace('text-', 'bg-')} ${info.colorClass.replace('text-', 'border-').replace('700', '400')} ${isFast ? 'animate-progress-flow' : ''}`}
-                            style={{ width: isFast ? '100%' : `${progressValue}%` }}
+                            className={`h-full rounded-full border shadow-[inset_0_1px_0_rgba(255,255,255,0.4)] relative overflow-hidden ${info.colorClass.replace('text-', 'bg-')} ${info.colorClass.replace('text-', 'border-').replace('700', '400')} ${isFast ? 'animate-progress-flow' : ''}`}
+                            style={{
+                                width: isFast ? '100%' : `${isNaN(progressValue) ? 0 : progressValue}%`,
+                                transition: 'none',
+                                willChange: 'width'
+                            }}
                         >
                             {!isFast && <div className="absolute inset-0 opacity-20 bg-[url('https://www.transparenttextures.com/patterns/wood-pattern.png')]"></div>}
                         </div>
@@ -164,7 +177,7 @@ const GeneratorCard: React.FC<GeneratorCardProps> = React.memo(({
                         className={`flex-1 rounded-lg font-heading text-sm font-bold tracking-widest uppercase transition-all duration-200 relative overflow-hidden shadow-md group select-none flex flex-col items-center justify-center h-full
               ${isAffordable
                                 ? 'bg-wood-700 text-parchment-100 border-2 border-wood-900 hover:bg-wood-800 hover:shadow-lg active:translate-y-[1px] active:scale-[0.98]'
-                                : 'bg-wood-300/50 text-wood-500 border-2 border-wood-300 cursor-not-allowed'
+                                : 'bg-wood-300 text-amber-900 border-2 border-wood-400 cursor-not-allowed'
                             }`}
                     >
                         {isAffordable && (
@@ -200,14 +213,7 @@ const GeneratorCard: React.FC<GeneratorCardProps> = React.memo(({
                     </button>
                 )}
 
-                <button
-                    onClick={() => setInfoModal(type)}
-                    className="w-10 h-full bg-wood-700 text-parchment-100 rounded-lg border-2 border-wood-900 shadow-md flex items-center justify-center hover:bg-wood-800 active:translate-y-[1px] transition-all relative overflow-hidden"
-                    title="Informações"
-                >
-                    <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/wood-pattern.png')] opacity-10"></div>
-                    <i className="fa-solid fa-exclamation text-sm drop-shadow-md relative z-10"></i>
-                </button>
+
             </div>
         </div>
     );

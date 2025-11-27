@@ -1,22 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Decimal from 'break_infinity.js';
-import { GameState } from './types';
+import { GameState, GeneratorType } from './types';
 import {
   WheatIcon, PeasantIcon, MillIcon, StableIcon,
   GuildIcon, MarketIcon, CastleIcon, CathedralIcon, CitadelIcon, KingdomIcon, WorkerIcon
 } from './components/Icons';
 import {
   PEASANT_COST, MILL_COST, STABLE_COST, GUILD_COST, MARKET_COST, CASTLE_COST, CATHEDRAL_COST, CITADEL_COST, KINGDOM_COST,
-  HARVEST_DURATION_MS, MILL_DURATION_MS, STABLE_DURATION_MS, GUILD_DURATION_MS, MARKET_DURATION_MS, CASTLE_DURATION_MS, CATHEDRAL_DURATION_MS, CITADEL_DURATION_MS, KINGDOM_DURATION_MS,
-  WHEAT_PER_HARVEST, PEASANTS_PER_MILL_CYCLE, MILLS_PER_STABLE_CYCLE, STABLES_PER_GUILD_CYCLE, GUILDS_PER_MARKET_CYCLE, MARKETS_PER_CASTLE_CYCLE, CASTLES_PER_CATHEDRAL_CYCLE, CATHEDRALS_PER_CITADEL_CYCLE, CITADELS_PER_KINGDOM_CYCLE,
-  SAVE_KEY, AUTOMATION_THRESHOLD, GENERATOR_ORDER, STATE_KEYS, UPGRADES_DATA, GENERATOR_INFO, INITIAL_STATE,
-  formatNumber, getUpgradesForType, getUpgradeCost, calculateMultipliers, calculatePurchase,
-  BuyMode, GeneratorType, Upgrade,
+  HARVEST_DURATION_MS, MILL_DURATION_MS, STABLE_DURATION_MS, GUILD_DURATION_MS, MARKET_DURATION_MS, CASTLE_DURATION_MS, CATHEDRAL_DURATION_MS, CITADEL_DURATION_MS, KINGDOM_DURATION_MS, EMPIRE_DURATION_MS, DYNASTY_DURATION_MS, PANTHEON_DURATION_MS, PLANE_DURATION_MS, GALAXY_DURATION_MS, UNIVERSE_DURATION_MS, MULTIVERSE_DURATION_MS,
+  WHEAT_PER_HARVEST, PEASANTS_PER_MILL_CYCLE, MILLS_PER_STABLE_CYCLE, STABLES_PER_GUILD_CYCLE, GUILDS_PER_MARKET_CYCLE, MARKETS_PER_CASTLE_CYCLE, CASTLES_PER_CATHEDRAL_CYCLE, CATHEDRALS_PER_CITADEL_CYCLE, CITADELS_PER_KINGDOM_CYCLE, KINGDOMS_PER_EMPIRE_CYCLE, EMPIRES_PER_DYNASTY_CYCLE, DYNASTIES_PER_PANTHEON_CYCLE, PANTHEONS_PER_PLANE_CYCLE, PLANES_PER_GALAXY_CYCLE, GALAXIES_PER_UNIVERSE_CYCLE, UNIVERSES_PER_MULTIVERSE_CYCLE,
+  SAVE_KEY, AUTOMATION_THRESHOLD, GENERATOR_ORDER, STATE_KEYS, GENERATOR_INFO, INITIAL_STATE, SKILL_TREE,
+  formatNumber, calculateMultipliers, calculatePurchase,
+  BuyMode,
   WORKER_COST,
-  PEASANT_WHEAT_COST, MILL_WHEAT_COST, STABLE_WHEAT_COST, GUILD_WHEAT_COST, MARKET_WHEAT_COST, CASTLE_WHEAT_COST, CATHEDRAL_WHEAT_COST, CITADEL_WHEAT_COST, KINGDOM_WHEAT_COST,
-  PEASANT_PREV_COST, MILL_PREV_COST, STABLE_PREV_COST, GUILD_PREV_COST, MARKET_PREV_COST, CASTLE_PREV_COST, CATHEDRAL_PREV_COST, CITADEL_PREV_COST, KINGDOM_PREV_COST
+  PEASANT_WHEAT_COST, MILL_WHEAT_COST, STABLE_WHEAT_COST, GUILD_WHEAT_COST, MARKET_WHEAT_COST, CASTLE_WHEAT_COST, CATHEDRAL_WHEAT_COST, CITADEL_WHEAT_COST, KINGDOM_WHEAT_COST, EMPIRE_WHEAT_COST, DYNASTY_WHEAT_COST, PANTHEON_WHEAT_COST, PLANE_WHEAT_COST, GALAXY_WHEAT_COST, UNIVERSE_WHEAT_COST, MULTIVERSE_WHEAT_COST,
+  PEASANT_PREV_COST, MILL_PREV_COST, STABLE_PREV_COST, GUILD_PREV_COST, MARKET_PREV_COST, CASTLE_PREV_COST, CATHEDRAL_PREV_COST, CITADEL_PREV_COST, KINGDOM_PREV_COST, EMPIRE_PREV_COST, DYNASTY_PREV_COST, PANTHEON_PREV_COST, PLANE_PREV_COST, GALAXY_PREV_COST, UNIVERSE_PREV_COST, MULTIVERSE_PREV_COST
 } from './gameData';
 import GeneratorCard from './components/GeneratorCard';
+import BottomNav from './components/BottomNav';
+import SkillTree from './components/SkillTree';
+import { useDraggableScroll } from './hooks/useDraggableScroll';
 
 type FPSLimit = number | 'vsync' | 'unlimited';
 
@@ -27,13 +30,11 @@ interface InfoModalProps {
   onClose: () => void;
   onNavigate: (type: GeneratorType) => void;
   gameState: GameState;
-  buyUpgrade: (upgrade: Upgrade) => void;
 }
 
-const InfoModal: React.FC<InfoModalProps> = ({ type, onClose, onNavigate, gameState, buyUpgrade }) => {
+const InfoModal: React.FC<InfoModalProps> = ({ type, onClose, onNavigate, gameState }) => {
   const info = GENERATOR_INFO[type];
-  const upgrades = getUpgradesForType(type);
-  const { speedMult, effMult } = calculateMultipliers(type, gameState.upgrades || {});
+  const { speedMult, effMult } = calculateMultipliers(type, gameState.unlockedSkills || []);
   const { ref, isDragging, events } = useDraggableScroll();
 
   return (
@@ -81,6 +82,13 @@ const InfoModal: React.FC<InfoModalProps> = ({ type, onClose, onNavigate, gameSt
                         {type === 'cathedral' && formatNumber(new Decimal(CATHEDRAL_PREV_COST))}
                         {type === 'citadel' && formatNumber(new Decimal(CITADEL_PREV_COST))}
                         {type === 'kingdom' && formatNumber(new Decimal(KINGDOM_PREV_COST))}
+                        {type === 'empire' && formatNumber(new Decimal(EMPIRE_PREV_COST))}
+                        {type === 'dynasty' && formatNumber(new Decimal(DYNASTY_PREV_COST))}
+                        {type === 'pantheon' && formatNumber(new Decimal(PANTHEON_PREV_COST))}
+                        {type === 'plane' && formatNumber(new Decimal(PLANE_PREV_COST))}
+                        {type === 'galaxy' && formatNumber(new Decimal(GALAXY_PREV_COST))}
+                        {type === 'universe' && formatNumber(new Decimal(UNIVERSE_PREV_COST))}
+                        {type === 'multiverse' && formatNumber(new Decimal(MULTIVERSE_PREV_COST))}
                         {React.createElement(info.costIcon, { className: `text-lg ${info.costColor}` })}
                       </span>
                     )}
@@ -95,6 +103,13 @@ const InfoModal: React.FC<InfoModalProps> = ({ type, onClose, onNavigate, gameSt
                       {type === 'cathedral' && formatNumber(new Decimal(CATHEDRAL_WHEAT_COST))}
                       {type === 'citadel' && formatNumber(new Decimal(CITADEL_WHEAT_COST))}
                       {type === 'kingdom' && formatNumber(new Decimal(KINGDOM_WHEAT_COST))}
+                      {type === 'empire' && formatNumber(new Decimal(EMPIRE_WHEAT_COST))}
+                      {type === 'dynasty' && formatNumber(new Decimal(DYNASTY_WHEAT_COST))}
+                      {type === 'pantheon' && formatNumber(new Decimal(PANTHEON_WHEAT_COST))}
+                      {type === 'plane' && formatNumber(new Decimal(PLANE_WHEAT_COST))}
+                      {type === 'galaxy' && formatNumber(new Decimal(GALAXY_WHEAT_COST))}
+                      {type === 'universe' && formatNumber(new Decimal(UNIVERSE_WHEAT_COST))}
+                      {type === 'multiverse' && formatNumber(new Decimal(MULTIVERSE_WHEAT_COST))}
                       <WheatIcon className="text-lg text-harvest" />
                     </span>
                   </div>
@@ -114,55 +129,13 @@ const InfoModal: React.FC<InfoModalProps> = ({ type, onClose, onNavigate, gameSt
               </div>
             </div>
 
-            {/* Right Column: Upgrades */}
+            {/* Right Column: Upgrades - REMOVED (Moved to Skill Tree) */}
             <div className="flex flex-col gap-4 relative">
-              {/* Divider for desktop */}
               <div className="hidden md:block absolute left-[-1rem] top-0 bottom-0 w-px bg-wood-300/30"></div>
-
               <h3 className="font-heading text-wood-900 text-center text-lg uppercase tracking-wider">Tecnologias</h3>
-              {upgrades.length > 0 ? (
-                <div className="space-y-3">
-                  {upgrades.map(u => {
-                    const currentRank = gameState.upgrades?.[u.id] || 0;
-                    const maxRank = u.maxRank || 10;
-                    const isMaxed = currentRank >= maxRank;
-                    const cost = getUpgradeCost(u, currentRank);
-                    const canAfford = gameState.wheat.gte(cost);
-
-                    return (
-                      <div key={u.id} className={`p-3 rounded border flex flex-col gap-2 ${currentRank > 0 ? 'bg-emerald-100/50 border-emerald-300' : 'bg-white/40 border-parchment-border'}`}>
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <div className="font-bold text-wood-900 text-sm flex items-center gap-2">
-                              {u.name}
-                              {currentRank > 0 && <span className="text-xs bg-wood-200 px-1.5 rounded text-wood-800 border border-wood-300">Lv {currentRank}</span>}
-                            </div>
-                            <div className="text-[10px] text-wood-600 leading-tight">{u.description}</div>
-                          </div>
-                          {isMaxed ? (
-                            <i className="fa-solid fa-check text-emerald-600" title="Máximo Atingido"></i>
-                          ) : (
-                            <div className="flex items-center gap-1 font-heading text-sm text-wood-800 tabular-nums">
-                              {formatNumber(cost)} <WheatIcon className="text-harvest" />
-                            </div>
-                          )}
-                        </div>
-                        {!isMaxed && (
-                          <button
-                            onClick={() => buyUpgrade(u)}
-                            disabled={!canAfford}
-                            className={`w-full py-1 text-[10px] uppercase font-bold tracking-wider rounded border transition-all ${canAfford ? 'bg-wood-700 text-parchment-100 border-wood-900 hover:bg-wood-800' : 'bg-wood-300 text-wood-500 border-wood-400 cursor-not-allowed'}`}
-                          >
-                            {currentRank === 0 ? 'Pesquisar' : 'Melhorar'}
-                          </button>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              ) : (
-                <p className="text-center text-wood-500 italic text-sm">Nenhuma tecnologia disponível.</p>
-              )}
+              <p className="text-center text-wood-500 italic text-sm">
+                As tecnologias agora fazem parte da Árvore de Habilidades.
+              </p>
             </div>
           </div>
         </div>
@@ -197,42 +170,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ type, onClose, onNavigate, gameSt
   );
 };
 
-const useDraggableScroll = () => {
-  const ref = useRef<HTMLDivElement>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const startY = useRef(0);
-  const scrollTop = useRef(0);
 
-  const onMouseDown = (e: React.MouseEvent) => {
-    if (!ref.current) return;
-    setIsDragging(true);
-    startY.current = e.pageY;
-    scrollTop.current = ref.current.scrollTop;
-    document.body.style.cursor = 'grabbing';
-  };
-
-  const onMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging || !ref.current) return;
-    e.preventDefault();
-    const y = e.pageY;
-    const walk = (y - startY.current) * 1.5;
-    ref.current.scrollTop = scrollTop.current - walk;
-  };
-
-  const onMouseUp = () => {
-    setIsDragging(false);
-    document.body.style.cursor = 'default';
-  };
-
-  const onMouseLeave = () => {
-    if (isDragging) {
-      setIsDragging(false);
-      document.body.style.cursor = 'default';
-    }
-  };
-
-  return { ref, isDragging, events: { onMouseDown, onMouseMove, onMouseUp, onMouseLeave } };
-};
 
 export default function App() {
   const [gameState, setGameState] = useState<GameState>(() => {
@@ -302,7 +240,7 @@ export default function App() {
   }, []);
 
   const [progress, setProgress] = useState({
-    wheat: 0,
+    peasant: 0,
     mill: 0,
     stable: 0,
     guild: 0,
@@ -310,12 +248,19 @@ export default function App() {
     castle: 0,
     cathedral: 0,
     citadel: 0,
-    kingdom: 0
+    kingdom: 0,
+    empire: 0,
+    dynasty: 0,
+    pantheon: 0,
+    plane: 0,
+    galaxy: 0,
+    universe: 0,
+    multiverse: 0
   });
 
   // Helper map for progress keys since 'peasant' uses 'wheat'
   const PROGRESS_KEYS: Record<GeneratorType, keyof typeof progress> = {
-    peasant: 'wheat',
+    peasant: 'peasant',
     mill: 'mill',
     stable: 'stable',
     guild: 'guild',
@@ -323,7 +268,14 @@ export default function App() {
     castle: 'castle',
     cathedral: 'cathedral',
     citadel: 'citadel',
-    kingdom: 'kingdom'
+    kingdom: 'kingdom',
+    empire: 'empire',
+    dynasty: 'dynasty',
+    pantheon: 'pantheon',
+    plane: 'plane',
+    galaxy: 'galaxy',
+    universe: 'universe',
+    multiverse: 'multiverse'
   };
 
   const [fpsLimit, setFpsLimit] = useState<FPSLimit>('vsync');
@@ -336,6 +288,7 @@ export default function App() {
   const [buyMode, setBuyMode] = useState<BuyMode>('1');
   const [holdingBtn, setHoldingBtn] = useState<GeneratorType | null>(null);
   const [infoModal, setInfoModal] = useState<GeneratorType | null>(null);
+  const [currentView, setCurrentView] = useState<'kingdom' | 'skills'>('kingdom');
 
   const [showSettings, setShowSettings] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -399,24 +352,7 @@ export default function App() {
 
 
 
-  const buyUpgrade = (upgrade: Upgrade) => {
-    setGameState(prev => {
-      const currentRank = prev.upgrades[upgrade.id] || 0;
-      const maxRank = upgrade.maxRank || 10;
 
-      if (currentRank >= maxRank) return prev;
-
-      const cost = getUpgradeCost(upgrade, currentRank);
-
-      if (prev.wheat.lt(cost)) return prev;
-
-      return {
-        ...prev,
-        wheat: prev.wheat.sub(cost),
-        upgrades: { ...prev.upgrades, [upgrade.id]: currentRank + 1 }
-      };
-    });
-  };
 
   const toggleBuyMode = () => {
     const modes: BuyMode[] = ['1', '1%', '10%', '50%', '100%'];
@@ -458,14 +394,19 @@ export default function App() {
           currentProg: number,
           baseDuration: number,
           baseOutput: number,
-          targetResource: Exclude<keyof GameState, 'upgrades'>,
-          totalResource: Exclude<keyof GameState, 'upgrades'>
+          targetResource: Exclude<keyof GameState, 'upgrades' | 'unlockedSkills'>,
+          totalResource: Exclude<keyof GameState, 'upgrades' | 'unlockedSkills'>
         ): number => {
           if (count.lte(0)) return currentProg;
 
-          const { speedMult, effMult } = calculateMultipliers(type, state.upgrades || {});
+          const { speedMult, effMult, hasLuck } = calculateMultipliers(type, state.unlockedSkills || []);
           const duration = baseDuration / speedMult;
-          const output = new Decimal(baseOutput).mul(effMult);
+          let output = new Decimal(baseOutput).mul(effMult);
+
+          // Luck Mechanic: 10% chance to double output
+          if (hasLuck && Math.random() < 0.1) {
+            output = output.mul(2);
+          }
 
           let nextProg = currentProg + ((dt / duration) * 100);
           if (nextProg >= 100) {
@@ -485,7 +426,7 @@ export default function App() {
         };
 
         // 1. Peasant -> Wheat
-        updates.wheat = processGenerator('peasant', state.peasants, prev.wheat, HARVEST_DURATION_MS, WHEAT_PER_HARVEST, 'wheat', 'totalHarvested');
+        updates.peasant = processGenerator('peasant', state.peasants, prev.peasant, HARVEST_DURATION_MS, WHEAT_PER_HARVEST, 'wheat', 'totalHarvested');
 
         // 2. Mill -> Peasant
         updates.mill = processGenerator('mill', state.mills, prev.mill, MILL_DURATION_MS, PEASANTS_PER_MILL_CYCLE, 'peasants', 'totalPeasantsGenerated');
@@ -510,6 +451,27 @@ export default function App() {
 
         // 9. Kingdom -> Citadel
         updates.kingdom = processGenerator('kingdom', state.kingdoms, prev.kingdom, KINGDOM_DURATION_MS, CITADELS_PER_KINGDOM_CYCLE, 'citadels', 'totalCitadelsGenerated');
+
+        // 10. Empire -> Kingdom
+        updates.empire = processGenerator('empire', state.empires, prev.empire, EMPIRE_DURATION_MS, KINGDOMS_PER_EMPIRE_CYCLE, 'kingdoms', 'totalKingdomsGenerated');
+
+        // 11. Dynasty -> Empire
+        updates.dynasty = processGenerator('dynasty', state.dynasties, prev.dynasty, DYNASTY_DURATION_MS, EMPIRES_PER_DYNASTY_CYCLE, 'empires', 'totalEmpiresGenerated');
+
+        // 12. Pantheon -> Dynasty
+        updates.pantheon = processGenerator('pantheon', state.pantheons, prev.pantheon, PANTHEON_DURATION_MS, DYNASTIES_PER_PANTHEON_CYCLE, 'dynasties', 'totalDynastiesGenerated');
+
+        // 13. Plane -> Pantheon
+        updates.plane = processGenerator('plane', state.planes, prev.plane, PLANE_DURATION_MS, PANTHEONS_PER_PLANE_CYCLE, 'pantheons', 'totalPantheonsGenerated');
+
+        // 14. Galaxy -> Plane
+        updates.galaxy = processGenerator('galaxy', state.galaxies, prev.galaxy, GALAXY_DURATION_MS, PLANES_PER_GALAXY_CYCLE, 'planes', 'totalPlanesGenerated');
+
+        // 15. Universe -> Galaxy
+        updates.universe = processGenerator('universe', state.universes, prev.universe, UNIVERSE_DURATION_MS, GALAXIES_PER_UNIVERSE_CYCLE, 'galaxies', 'totalGalaxiesGenerated');
+
+        // 16. Multiverse -> Universe
+        updates.multiverse = processGenerator('multiverse', state.multiverses, prev.multiverse, MULTIVERSE_DURATION_MS, UNIVERSES_PER_MULTIVERSE_CYCLE, 'universes', 'totalUniversesGenerated');
 
         if (hasUpdates) {
           setGameState(curr => ({ ...curr, ...stateUpdates }));
@@ -650,6 +612,23 @@ export default function App() {
   };
   const handlePressEnd = () => setHoldingBtn(null);
 
+  const handleBuySkill = (skillId: string) => {
+    setGameState(prev => {
+      if (prev.unlockedSkills.includes(skillId)) return prev;
+
+      const skill = SKILL_TREE.find(n => n.id === skillId);
+      if (!skill) return prev;
+
+      if (prev.wheat.lt(skill.cost)) return prev;
+
+      return {
+        ...prev,
+        wheat: prev.wheat.sub(skill.cost),
+        unlockedSkills: [...prev.unlockedSkills, skillId]
+      };
+    });
+  };
+
   const handleResetGame = () => {
     if (confirm("Tem certeza que deseja apagar todo o progresso?")) {
       isResettingRef.current = true;
@@ -697,13 +676,18 @@ export default function App() {
           onClose={() => setInfoModal(null)}
           onNavigate={(t) => setInfoModal(t)}
           gameState={gameState}
-          buyUpgrade={buyUpgrade}
         />
       )}
 
       <div className="relative z-10 w-full h-full bg-parchment-200 overflow-hidden select-none flex flex-col">
         <header className="pt-6 pb-4 px-8 text-center bg-parchment-300/50 border-b border-wood-300/30 relative shrink-0">
           <div className="absolute top-4 right-4 flex gap-4 z-50">
+            {showFPS && (
+              <div className="flex items-center gap-1 bg-parchment-100/80 px-2 py-1 rounded border border-wood-300 text-xs font-bold text-wood-600 tabular-nums shadow-sm">
+                <span>{actualFPS}</span>
+                <span className="text-[10px] opacity-70">FPS</span>
+              </div>
+            )}
             <button onClick={toggleFullscreen} className="text-wood-700 hover:text-wood-900 transition-colors" title={isFullscreen ? "Sair da Tela Cheia" : "Tela Cheia"}>
               <i className={`fa-solid ${isFullscreen ? 'fa-compress' : 'fa-expand'} text-lg`}></i>
             </button>
@@ -735,45 +719,50 @@ export default function App() {
           </div>
         </div>
 
-        <div className="flex justify-center p-2 bg-parchment-300/30 border-b border-wood-300/30 shrink-0">
-          <div className="flex items-center">
-            <button onClick={toggleBuyMode} className="min-w-[2.5rem] px-2 py-0.5 rounded font-heading font-bold text-[10px] bg-wood-700 text-parchment-100 border border-wood-900 shadow-sm hover:bg-wood-600 transition-all flex items-center justify-center active:translate-y-[1px] select-none" title="Clique para mudar a quantidade de compra"><span>{buyMode}</span></button>
-          </div>
-        </div>
+        {currentView === 'kingdom' ? (
+          <>
+            <div className="flex justify-center p-2 bg-parchment-300/30 border-b border-wood-300/30 shrink-0">
+              <div className="flex items-center">
+                <button onClick={toggleBuyMode} className="min-w-[2.5rem] px-2 py-0.5 rounded font-heading font-bold text-[10px] bg-wood-700 text-parchment-100 border border-wood-900 shadow-sm hover:bg-wood-600 transition-all flex items-center justify-center active:translate-y-[1px] select-none" title="Clique para mudar a quantidade de compra"><span>{buyMode}</span></button>
+              </div>
+            </div>
 
-        <div
-          ref={scrollContainerRef}
-          {...dragEvents}
-          className={`flex-1 p-6 bg-parchment-300 shadow-inner grid grid-cols-1 lg:grid-cols-3 gap-6 overflow-y-auto ${isDragging ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
-        >
-          {GENERATOR_ORDER.map((type, index) => {
-            const prevType = index > 0 ? GENERATOR_ORDER[index - 1] : null;
-            // Visible if: It's the first one OR we have the previous one OR we already own the current one
-            const isVisible = index === 0 || (prevType && ((gameState[STATE_KEYS[prevType]] as Decimal).gt(0) || (gameState[STATE_KEYS[type]] as Decimal).gt(0)));
+            <div
+              ref={scrollContainerRef}
+              {...dragEvents}
+              className={`flex-1 p-6 bg-amber-900 shadow-inner grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 overflow-y-auto relative ${isDragging ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
+            >
+              <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/pixel-weave.png')] opacity-40 pointer-events-none fixed"></div>
+              {GENERATOR_ORDER.map((type, index) => {
+                const prevType = index > 0 ? GENERATOR_ORDER[index - 1] : null;
+                const isVisible = index === 0 || (prevType && ((gameState[STATE_KEYS[prevType]] as Decimal).gt(0) || (gameState[STATE_KEYS[type]] as Decimal).gt(0)));
 
-            if (!isVisible) return null;
+                if (!isVisible) return null;
 
-            return (
-              <GeneratorCard
-                key={type}
-                type={type}
-                gameState={gameState}
-                progressValue={progress[PROGRESS_KEYS[type]]}
-                buyMode={buyMode}
-                holdingBtn={holdingBtn}
-                costFeedback={costFeedback[type]}
-                setInfoModal={setInfoModal}
-                handlePressStart={handlePressStart}
-                handlePressEnd={handlePressEnd}
-              />
-            );
-          })}
-        </div>
+                return (
+                  <GeneratorCard
+                    key={type}
+                    type={type}
+                    progressValue={progress[type as keyof typeof progress] || 0}
+                    holdingBtn={holdingBtn}
+                    costFeedback={costFeedback[type]}
+                    setInfoModal={setInfoModal}
+                    handlePressStart={handlePressStart}
+                    handlePressEnd={handlePressEnd}
+                    buyMode={buyMode}
+                    gameState={gameState}
+                  />
+                );
+              })}
+              {/* Spacer for bottom nav */}
+              <div className="h-16 w-full col-span-full"></div>
+            </div>
+          </>
+        ) : (
+          <SkillTree gameState={gameState} onBuySkill={handleBuySkill} />
+        )}
 
-        <div className="bg-wood-900 py-3 border-t-4 border-wood-700 relative flex items-center justify-center h-10 shrink-0">
-          <div className="text-parchment-100/30"><i className="fa-brands fa-fort-awesome text-xs"></i></div>
-          {showFPS && <div className="absolute right-4 text-[10px] text-parchment-100 font-mono"><span title="Quadros por segundo atuais">FPS: {actualFPS}</span></div>}
-        </div>
+        <BottomNav currentView={currentView} onNavigate={setCurrentView} />
       </div>
     </div>
   );
