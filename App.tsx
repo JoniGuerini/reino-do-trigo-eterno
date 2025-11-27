@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Decimal from 'break_infinity.js';
 import { GameState, GeneratorType } from './types';
 import {
@@ -239,27 +239,44 @@ export default function App() {
     return () => clearInterval(saveInterval);
   }, []);
 
-  const [progress, setProgress] = useState({
-    peasant: 0,
-    mill: 0,
-    stable: 0,
-    guild: 0,
-    market: 0,
-    castle: 0,
-    cathedral: 0,
-    citadel: 0,
-    kingdom: 0,
-    empire: 0,
-    dynasty: 0,
-    pantheon: 0,
-    plane: 0,
-    galaxy: 0,
-    universe: 0,
-    multiverse: 0
+  type ProgressState = Record<GeneratorType, { val: number, lastLuck: number }>;
+
+  // Use refs for progress to avoid re-renders
+  const progressStateRef = useRef<ProgressState>({
+    peasant: { val: 0, lastLuck: 0 },
+    mill: { val: 0, lastLuck: 0 },
+    stable: { val: 0, lastLuck: 0 },
+    guild: { val: 0, lastLuck: 0 },
+    market: { val: 0, lastLuck: 0 },
+    castle: { val: 0, lastLuck: 0 },
+    cathedral: { val: 0, lastLuck: 0 },
+    citadel: { val: 0, lastLuck: 0 },
+    kingdom: { val: 0, lastLuck: 0 },
+    empire: { val: 0, lastLuck: 0 },
+    dynasty: { val: 0, lastLuck: 0 },
+    pantheon: { val: 0, lastLuck: 0 },
+    plane: { val: 0, lastLuck: 0 },
+    galaxy: { val: 0, lastLuck: 0 },
+    universe: { val: 0, lastLuck: 0 },
+    multiverse: { val: 0, lastLuck: 0 }
   });
 
-  // Helper map for progress keys since 'peasant' uses 'wheat'
-  const PROGRESS_KEYS: Record<GeneratorType, keyof typeof progress> = {
+  // Refs for direct DOM manipulation of progress bars
+  const progressRefs = useRef<Record<GeneratorType, HTMLDivElement | null>>({
+    peasant: null, mill: null, stable: null, guild: null, market: null, castle: null,
+    cathedral: null, citadel: null, kingdom: null, empire: null, dynasty: null,
+    pantheon: null, plane: null, galaxy: null, universe: null, multiverse: null
+  });
+
+  // State for luck animation triggers (still needs to be state to re-render card)
+  const [luckState, setLuckState] = useState<Record<GeneratorType, number>>({
+    peasant: 0, mill: 0, stable: 0, guild: 0, market: 0, castle: 0,
+    cathedral: 0, citadel: 0, kingdom: 0, empire: 0, dynasty: 0,
+    pantheon: 0, plane: 0, galaxy: 0, universe: 0, multiverse: 0
+  });
+
+  // Helper map for progress keys
+  const PROGRESS_KEYS: Record<GeneratorType, keyof ProgressState> = {
     peasant: 'peasant',
     mill: 'mill',
     stable: 'stable',
@@ -369,6 +386,15 @@ export default function App() {
     return () => clearInterval(measureInterval);
   }, []);
 
+  // Optimize Multipliers Calculation
+  const multipliersCache = useMemo(() => {
+    const cache: Record<GeneratorType, { speedMult: number, effMult: Decimal, hasLuck: boolean }> = {} as any;
+    GENERATOR_ORDER.forEach(type => {
+      cache[type] = calculateMultipliers(type, gameState.unlockedSkills || []);
+    });
+    return cache;
+  }, [gameState.unlockedSkills]);
+
   // MAIN GAME LOOP
   useEffect(() => {
     lastTimeRef.current = performance.now();
@@ -381,121 +407,153 @@ export default function App() {
       lastTimeRef.current = now;
       framesRef.current++;
 
-      setProgress((prev) => {
-        const state = stateRef.current;
-        let updates = { ...prev };
-        let stateUpdates: Partial<GameState> = {};
-        let hasUpdates = false;
+      const state = stateRef.current;
+      let stateUpdates: Partial<GameState> = {};
+      let hasUpdates = false;
+      let luckUpdates: Record<string, number> = {};
+      let hasLuckUpdates = false;
 
-        // Helper for production logic
-        const processGenerator = (
-          type: GeneratorType,
-          count: Decimal,
-          currentProg: number,
-          baseDuration: number,
-          baseOutput: number,
-          targetResource: Exclude<keyof GameState, 'upgrades' | 'unlockedSkills'>,
-          totalResource: Exclude<keyof GameState, 'upgrades' | 'unlockedSkills'>
-        ): number => {
-          if (count.lte(0)) return currentProg;
+      // Helper for production logic
+      const processGenerator = (
+        type: GeneratorType,
+        count: Decimal,
+        baseDuration: number,
+        baseOutput: number,
+        targetResource: Exclude<keyof GameState, 'upgrades' | 'unlockedSkills'>,
+        totalResource: Exclude<keyof GameState, 'upgrades' | 'unlockedSkills'>
+      ) => {
+        const currentProg = progressStateRef.current[type];
+        if (count.lte(0)) return;
 
-          const { speedMult, effMult, hasLuck } = calculateMultipliers(type, state.unlockedSkills || []);
-          const duration = baseDuration / speedMult;
-          let output = new Decimal(baseOutput).mul(effMult);
+        // Use cached multipliers
+        const { speedMult, effMult, hasLuck } = multipliersCache[type];
 
-          // Luck Mechanic: 10% chance to double output
-          if (hasLuck && Math.random() < 0.1) {
-            output = output.mul(2);
-          }
+        const duration = baseDuration / speedMult;
+        let output = new Decimal(baseOutput).mul(effMult);
+        let luckTriggered = false;
 
-          let nextProg = currentProg + ((dt / duration) * 100);
-          if (nextProg >= 100) {
-            const cycles = Math.floor(nextProg / 100);
-            nextProg = nextProg % 100;
-            const produced = count.mul(output).mul(cycles);
-
-            // Queue state update
-            const currentTarget = stateUpdates[targetResource] || state[targetResource] as Decimal;
-            const currentTotal = stateUpdates[totalResource] || state[totalResource] as Decimal;
-
-            stateUpdates[targetResource] = currentTarget.add(produced) as any;
-            stateUpdates[totalResource] = currentTotal.add(produced) as any;
-            hasUpdates = true;
-          }
-          return nextProg;
-        };
-
-        // 1. Peasant -> Wheat
-        updates.peasant = processGenerator('peasant', state.peasants, prev.peasant, HARVEST_DURATION_MS, WHEAT_PER_HARVEST, 'wheat', 'totalHarvested');
-
-        // 2. Mill -> Peasant
-        updates.mill = processGenerator('mill', state.mills, prev.mill, MILL_DURATION_MS, PEASANTS_PER_MILL_CYCLE, 'peasants', 'totalPeasantsGenerated');
-
-        // 3. Stable -> Mill
-        updates.stable = processGenerator('stable', state.stables, prev.stable, STABLE_DURATION_MS, MILLS_PER_STABLE_CYCLE, 'mills', 'totalMillsGenerated');
-
-        // 4. Guild -> Stable
-        updates.guild = processGenerator('guild', state.guilds, prev.guild, GUILD_DURATION_MS, STABLES_PER_GUILD_CYCLE, 'stables', 'totalStablesGenerated');
-
-        // 5. Market -> Guild
-        updates.market = processGenerator('market', state.markets, prev.market, MARKET_DURATION_MS, GUILDS_PER_MARKET_CYCLE, 'guilds', 'totalGuildsGenerated');
-
-        // 6. Castle -> Market
-        updates.castle = processGenerator('castle', state.castles, prev.castle, CASTLE_DURATION_MS, MARKETS_PER_CASTLE_CYCLE, 'markets', 'totalMarketsGenerated');
-
-        // 7. Cathedral -> Castle
-        updates.cathedral = processGenerator('cathedral', state.cathedrals, prev.cathedral, CATHEDRAL_DURATION_MS, CASTLES_PER_CATHEDRAL_CYCLE, 'castles', 'totalCastlesGenerated');
-
-        // 8. Citadel -> Cathedral
-        updates.citadel = processGenerator('citadel', state.citadels, prev.citadel, CITADEL_DURATION_MS, CATHEDRALS_PER_CITADEL_CYCLE, 'cathedrals', 'totalCathedralsGenerated');
-
-        // 9. Kingdom -> Citadel
-        updates.kingdom = processGenerator('kingdom', state.kingdoms, prev.kingdom, KINGDOM_DURATION_MS, CITADELS_PER_KINGDOM_CYCLE, 'citadels', 'totalCitadelsGenerated');
-
-        // 10. Empire -> Kingdom
-        updates.empire = processGenerator('empire', state.empires, prev.empire, EMPIRE_DURATION_MS, KINGDOMS_PER_EMPIRE_CYCLE, 'kingdoms', 'totalKingdomsGenerated');
-
-        // 11. Dynasty -> Empire
-        updates.dynasty = processGenerator('dynasty', state.dynasties, prev.dynasty, DYNASTY_DURATION_MS, EMPIRES_PER_DYNASTY_CYCLE, 'empires', 'totalEmpiresGenerated');
-
-        // 12. Pantheon -> Dynasty
-        updates.pantheon = processGenerator('pantheon', state.pantheons, prev.pantheon, PANTHEON_DURATION_MS, DYNASTIES_PER_PANTHEON_CYCLE, 'dynasties', 'totalDynastiesGenerated');
-
-        // 13. Plane -> Pantheon
-        updates.plane = processGenerator('plane', state.planes, prev.plane, PLANE_DURATION_MS, PANTHEONS_PER_PLANE_CYCLE, 'pantheons', 'totalPantheonsGenerated');
-
-        // 14. Galaxy -> Plane
-        updates.galaxy = processGenerator('galaxy', state.galaxies, prev.galaxy, GALAXY_DURATION_MS, PLANES_PER_GALAXY_CYCLE, 'planes', 'totalPlanesGenerated');
-
-        // 15. Universe -> Galaxy
-        updates.universe = processGenerator('universe', state.universes, prev.universe, UNIVERSE_DURATION_MS, GALAXIES_PER_UNIVERSE_CYCLE, 'galaxies', 'totalGalaxiesGenerated');
-
-        // 16. Multiverse -> Universe
-        updates.multiverse = processGenerator('multiverse', state.multiverses, prev.multiverse, MULTIVERSE_DURATION_MS, UNIVERSES_PER_MULTIVERSE_CYCLE, 'universes', 'totalUniversesGenerated');
-
-        if (hasUpdates) {
-          setGameState(curr => ({ ...curr, ...stateUpdates }));
+        // Luck Mechanic: 10% chance to double output
+        if (hasLuck && Math.random() < 0.1) {
+          output = output.mul(2);
+          luckTriggered = true;
         }
 
-        // Passive Worker Generation (1 per second) - Wall Clock Logic
-        const nowTime = Date.now();
-        const timeDiff = nowTime - lastWorkerTimeRef.current;
+        let nextProg = currentProg.val + ((dt / duration) * 100);
+        let nextLastLuck = currentProg.lastLuck;
 
-        if (timeDiff >= 1000) {
-          const secondsPassed = Math.floor(timeDiff / 1000);
-          if (secondsPassed > 0) {
-            lastWorkerTimeRef.current += secondsPassed * 1000;
+        if (nextProg >= 100) {
+          const cycles = Math.floor(nextProg / 100);
+          nextProg = nextProg % 100;
+          const produced = count.mul(output).mul(cycles);
 
-            setGameState(curr => ({
-              ...curr,
-              workers: curr.workers.add(secondsPassed),
-              totalWorkersGenerated: curr.totalWorkersGenerated.add(secondsPassed)
-            }));
+          // Queue state update
+          const currentTarget = stateUpdates[targetResource] || state[targetResource] as Decimal;
+          const currentTotal = stateUpdates[totalResource] || state[totalResource] as Decimal;
+
+          stateUpdates[targetResource] = currentTarget.add(produced) as any;
+          stateUpdates[totalResource] = currentTotal.add(produced) as any;
+          hasUpdates = true;
+
+          if (luckTriggered) {
+            nextLastLuck = Date.now();
+            luckUpdates[type] = nextLastLuck;
+            hasLuckUpdates = true;
           }
         }
 
-        return updates;
-      });
+        // Update Ref State
+        progressStateRef.current[type] = { val: nextProg, lastLuck: nextLastLuck };
+
+        // Direct DOM Update
+        const barRef = progressRefs.current[type];
+        if (barRef) {
+          // If very fast, just keep it full or animate differently? For now standard logic.
+          // If duration is super short (< 0.5s), GeneratorCard handles 'isFast' class, 
+          // but we can also just pin width to 100% here if we wanted.
+          // GeneratorCard logic: const isFast = currentDuration < 0.5 && count.gt(0);
+          const isFast = (duration / 1000) < 0.5;
+          if (isFast) {
+            barRef.style.width = '100%';
+          } else {
+            barRef.style.width = `${nextProg}%`;
+          }
+        }
+      };
+
+      // 1. Peasant -> Wheat
+      processGenerator('peasant', state.peasants, HARVEST_DURATION_MS, WHEAT_PER_HARVEST, 'wheat', 'totalHarvested');
+
+      // 2. Mill -> Peasant
+      processGenerator('mill', state.mills, MILL_DURATION_MS, PEASANTS_PER_MILL_CYCLE, 'peasants', 'totalPeasantsGenerated');
+
+      // 3. Stable -> Mill
+      processGenerator('stable', state.stables, STABLE_DURATION_MS, MILLS_PER_STABLE_CYCLE, 'mills', 'totalMillsGenerated');
+
+      // 4. Guild -> Stable
+      processGenerator('guild', state.guilds, GUILD_DURATION_MS, STABLES_PER_GUILD_CYCLE, 'stables', 'totalStablesGenerated');
+
+      // 5. Market -> Guild
+      processGenerator('market', state.markets, MARKET_DURATION_MS, GUILDS_PER_MARKET_CYCLE, 'guilds', 'totalGuildsGenerated');
+
+      // 6. Castle -> Market
+      processGenerator('castle', state.castles, CASTLE_DURATION_MS, MARKETS_PER_CASTLE_CYCLE, 'markets', 'totalMarketsGenerated');
+
+      // 7. Cathedral -> Castle
+      processGenerator('cathedral', state.cathedrals, CATHEDRAL_DURATION_MS, CASTLES_PER_CATHEDRAL_CYCLE, 'castles', 'totalCastlesGenerated');
+
+      // 8. Citadel -> Cathedral
+      processGenerator('citadel', state.citadels, CITADEL_DURATION_MS, CATHEDRALS_PER_CITADEL_CYCLE, 'cathedrals', 'totalCathedralsGenerated');
+
+      // 9. Kingdom -> Citadel
+      processGenerator('kingdom', state.kingdoms, KINGDOM_DURATION_MS, CITADELS_PER_KINGDOM_CYCLE, 'citadels', 'totalCitadelsGenerated');
+
+      // 10. Empire -> Kingdom
+      processGenerator('empire', state.empires, EMPIRE_DURATION_MS, KINGDOMS_PER_EMPIRE_CYCLE, 'kingdoms', 'totalKingdomsGenerated');
+
+      // 11. Dynasty -> Empire
+      processGenerator('dynasty', state.dynasties, DYNASTY_DURATION_MS, EMPIRES_PER_DYNASTY_CYCLE, 'empires', 'totalEmpiresGenerated');
+
+      // 12. Pantheon -> Dynasty
+      processGenerator('pantheon', state.pantheons, PANTHEON_DURATION_MS, DYNASTIES_PER_PANTHEON_CYCLE, 'dynasties', 'totalDynastiesGenerated');
+
+      // 13. Plane -> Pantheon
+      processGenerator('plane', state.planes, PLANE_DURATION_MS, PANTHEONS_PER_PLANE_CYCLE, 'pantheons', 'totalPantheonsGenerated');
+
+      // 14. Galaxy -> Plane
+      processGenerator('galaxy', state.galaxies, GALAXY_DURATION_MS, PLANES_PER_GALAXY_CYCLE, 'planes', 'totalPlanesGenerated');
+
+      // 15. Universe -> Galaxy
+      processGenerator('universe', state.universes, UNIVERSE_DURATION_MS, GALAXIES_PER_UNIVERSE_CYCLE, 'galaxies', 'totalGalaxiesGenerated');
+
+      // 16. Multiverse -> Universe
+      processGenerator('multiverse', state.multiverses, MULTIVERSE_DURATION_MS, UNIVERSES_PER_MULTIVERSE_CYCLE, 'universes', 'totalUniversesGenerated');
+
+      if (hasUpdates) {
+        setGameState(curr => ({ ...curr, ...stateUpdates }));
+      }
+
+      if (hasLuckUpdates) {
+        setLuckState(prev => ({ ...prev, ...luckUpdates }));
+      }
+
+      // Passive Worker Generation (1 per second) - Wall Clock Logic
+      const nowTime = Date.now();
+      const timeDiff = nowTime - lastWorkerTimeRef.current;
+
+      if (timeDiff >= 1000) {
+        const secondsPassed = Math.floor(timeDiff / 1000);
+        if (secondsPassed > 0) {
+          lastWorkerTimeRef.current += secondsPassed * 1000;
+
+          setGameState(curr => ({
+            ...curr,
+            workers: curr.workers.add(secondsPassed),
+            totalWorkersGenerated: curr.totalWorkersGenerated.add(secondsPassed)
+          }));
+        }
+      }
+
+
 
       if (fpsLimit === 'vsync') {
         loopRef.current = requestAnimationFrame(loop);
@@ -513,7 +571,7 @@ export default function App() {
         clearTimeout(loopRef.current as NodeJS.Timeout);
       }
     };
-  }, [fpsLimit]);
+  }, [fpsLimit, multipliersCache]);
 
   // Handle Cost Feedback Logic
   const showCostFeedback = (type: GeneratorType, costs: { wheat: Decimal, workers: Decimal, prevTier: Decimal, prevTierKey: keyof GameState | null }) => {
@@ -739,13 +797,17 @@ export default function App() {
 
                 if (!isVisible) return null;
 
+
+
                 return (
                   <GeneratorCard
                     key={type}
                     type={type}
-                    progressValue={progress[type as keyof typeof progress] || 0}
+                    progressRef={(el: HTMLDivElement) => { progressRefs.current[type] = el; }}
+                    lastLuck={luckState[type]}
                     holdingBtn={holdingBtn}
                     costFeedback={costFeedback[type]}
+                    multipliers={multipliersCache[type]}
                     setInfoModal={setInfoModal}
                     handlePressStart={handlePressStart}
                     handlePressEnd={handlePressEnd}

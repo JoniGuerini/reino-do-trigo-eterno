@@ -10,10 +10,12 @@ import { WorkerIcon, WheatIcon } from './Icons';
 interface GeneratorCardProps {
     type: GeneratorType;
     gameState: GameState;
-    progressValue: number;
+    progressRef: React.Ref<HTMLDivElement>;
+    lastLuck: number; // Timestamp of last luck event
     buyMode: BuyMode;
     holdingBtn: GeneratorType | null;
     costFeedback: { costs: { wheat: Decimal, workers: Decimal, prevTier: Decimal, prevTierKey: keyof GameState | null }, visible: boolean } | undefined;
+    multipliers: { speedMult: number, effMult: Decimal, hasLuck: boolean };
     setInfoModal: (type: GeneratorType) => void;
     handlePressStart: (type: GeneratorType, e: React.MouseEvent | React.TouchEvent) => void;
     handlePressEnd: () => void;
@@ -22,10 +24,12 @@ interface GeneratorCardProps {
 const GeneratorCard: React.FC<GeneratorCardProps> = React.memo(({
     type,
     gameState,
-    progressValue,
+    progressRef,
+    lastLuck,
     buyMode,
     holdingBtn,
     costFeedback,
+    multipliers,
     setInfoModal,
     handlePressStart,
     handlePressEnd
@@ -33,10 +37,15 @@ const GeneratorCard: React.FC<GeneratorCardProps> = React.memo(({
     const info = GENERATOR_INFO[type];
     const stateKey = STATE_KEYS[type];
     const count = gameState[stateKey] as Decimal;
-    const purchaseData = calculatePurchase(type, gameState, buyMode);
 
-    // Multipliers for display
-    const { speedMult, effMult } = calculateMultipliers(type, gameState.unlockedSkills || []);
+    // Memoize purchase calculation
+    const purchaseData = React.useMemo(() =>
+        calculatePurchase(type, gameState, buyMode),
+        [type, gameState.wheat, gameState.workers, gameState[STATE_KEYS[type]], buyMode]
+    );
+
+    // Use passed multipliers
+    const { speedMult, effMult } = multipliers;
     const currentProd = info.prodAmount.mul(effMult);
     const currentDuration = info.duration / speedMult;
     const isFast = currentDuration < 0.5 && count.gt(0);
@@ -47,10 +56,23 @@ const GeneratorCard: React.FC<GeneratorCardProps> = React.memo(({
     const nextTierCount = nextTierType ? gameState[STATE_KEYS[nextTierType]] as Decimal : new Decimal(0);
     const isAutomated = nextTierCount.gte(AUTOMATION_THRESHOLD);
 
-    // Missing resource calculation is now done inline in the render
+    // Luck Animation State
+    const [luckAnim, setLuckAnim] = React.useState(false);
+    const prevLuckRef = React.useRef(lastLuck);
 
+    React.useEffect(() => {
+        if (lastLuck > prevLuckRef.current) {
+            setLuckAnim(true);
+            const timer = setTimeout(() => setLuckAnim(false), 500); // Animation duration
+            prevLuckRef.current = lastLuck;
+            return () => clearTimeout(timer);
+        }
+    }, [lastLuck]);
 
     const isAffordable = purchaseData.canAfford;
+
+    // Calculate displayed production (doubled if luck animation is active)
+    const displayProd = luckAnim ? count.mul(currentProd).mul(2) : count.mul(currentProd);
 
     return (
         <div className="flex flex-col gap-1 h-40">
@@ -101,9 +123,10 @@ const GeneratorCard: React.FC<GeneratorCardProps> = React.memo(({
                     {/* Progress Bar */}
                     <div className="h-5 bg-wood-300/30 rounded-full p-[3px] shadow-inner shrink-0">
                         <div
+                            ref={progressRef}
                             className={`h-full rounded-full border shadow-[inset_0_1px_0_rgba(255,255,255,0.4)] relative overflow-hidden ${info.colorClass.replace('text-', 'bg-')} ${info.colorClass.replace('text-', 'border-').replace('700', '400')} ${isFast ? 'animate-progress-flow' : ''}`}
                             style={{
-                                width: isFast ? '100%' : `${isNaN(progressValue) ? 0 : progressValue}%`,
+                                width: isFast ? '100%' : '0%', // Initial width, updated via ref
                                 transition: 'none',
                                 willChange: 'width'
                             }}
@@ -145,8 +168,8 @@ const GeneratorCard: React.FC<GeneratorCardProps> = React.memo(({
                             </div>
                         )}
 
-                        <span className={`bg-parchment-100 px-2 py-0.5 rounded border border-parchment-border shadow-sm flex items-center gap-1 text-xs font-bold tabular-nums z-10 relative ${effMult.gt(1) ? 'text-emerald-700' : 'text-wood-800'}`}>
-                            {count.gt(0) ? `+${formatNumber(count.mul(currentProd))}` : '0'}
+                        <span className={`bg-parchment-100 px-2 py-0.5 rounded border border-parchment-border shadow-sm flex items-center gap-1 text-xs font-bold tabular-nums z-10 relative ${effMult.gt(1) ? 'text-emerald-700' : 'text-wood-800'} ${luckAnim ? 'animate-gold-pulse' : ''}`}>
+                            {count.gt(0) ? `+${formatNumber(displayProd)}` : '0'}
                             {React.createElement(info.prodIcon, { className: info.prodColor })}
                         </span>
                     </div>
