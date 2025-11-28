@@ -19,9 +19,11 @@ import {
 import GeneratorCard from './components/GeneratorCard';
 import BottomNav from './components/BottomNav';
 import SkillTree from './components/SkillTree';
+
+import SettingsModal from './components/SettingsModal';
 import { useDraggableScroll } from './hooks/useDraggableScroll';
 
-type FPSLimit = number | 'vsync' | 'unlimited';
+export type FPSLimit = number | 'vsync' | 'unlimited';
 
 
 
@@ -339,6 +341,7 @@ export default function App() {
   const [currentView, setCurrentView] = useState<'kingdom' | 'skills'>('kingdom');
 
   const [showSettings, setShowSettings] = useState(false);
+  const [showSaveConfirm, setShowSaveConfirm] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Drag to Scroll Logic
@@ -506,7 +509,7 @@ export default function App() {
         if (barRef) {
           // Use a slightly higher threshold than GeneratorCard (0.5s) to ensure we switch to static mode
           // BEFORE the candy animation triggers. This prevents "loading bar + candy" glitches.
-          const isFast = (duration / 1000) <= 0.55;
+          const isFast = (duration / 1000) <= 1.0;
           if (isFast) {
             barRef.style.width = '100%';
           } else {
@@ -762,6 +765,17 @@ export default function App() {
     }
   };
 
+  const handleSaveAndExit = () => {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(stateRef.current));
+    try {
+      window.close();
+    } catch (e) {
+      // Ignore
+    }
+    // Fallback if window.close() fails (common in browsers)
+    setShowSaveConfirm(true);
+  };
+
 
 
 
@@ -771,27 +785,33 @@ export default function App() {
       <div className="absolute inset-0 bg-parchment-100 opacity-5 pointer-events-none z-0"></div>
       <div className="fixed inset-0 pointer-events-none z-0 bg-[radial-gradient(circle_at_center,_transparent_0%,_rgba(62,39,35,0.4)_100%)]"></div>
 
-      {showSettings && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-wood-900/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-sm bg-parchment-200 rounded-lg shadow-2xl border-4 border-wood-500 relative overflow-hidden">
-            <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/wood-pattern.png')] pointer-events-none"></div>
-            <button onClick={() => setShowSettings(false)} className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center text-wood-700 hover:text-wood-900 z-20"><i className="fa-solid fa-xmark text-xl"></i></button>
-            <div className="bg-parchment-300/50 p-6 text-center border-b border-wood-300/30">
-              <div className="text-4xl mb-3 text-wood-700"><i className="fa-solid fa-gear"></i></div>
-              <h2 className="font-heading text-2xl text-wood-900">Configurações</h2>
-            </div>
-            <div className="p-6 space-y-6">
-              <div className="flex items-center justify-between bg-white/40 p-4 rounded border border-parchment-border">
-                <span className="font-bold text-wood-900 text-sm uppercase tracking-wider">Monitor de FPS</span>
-                <button onClick={() => setShowFPS(!showFPS)} className={`px-4 py-1.5 rounded font-heading text-sm border-2 transition-all shadow-sm ${showFPS ? 'bg-wood-700 text-parchment-100 border-wood-900' : 'bg-parchment-100 text-wood-500 border-wood-300'}`}>{showFPS ? 'LIGADO' : 'DESLIGADO'}</button>
-              </div>
-              <div className="flex items-center justify-between bg-white/40 p-4 rounded border border-parchment-border">
-                <span className="font-bold text-wood-900 text-sm uppercase tracking-wider">Limite de FPS (VSync)</span>
-                <button onClick={() => setFpsLimit(prev => prev === 'vsync' ? 'unlimited' : 'vsync')} className={`px-4 py-1.5 rounded font-heading text-sm border-2 transition-all shadow-sm ${fpsLimit === 'vsync' ? 'bg-wood-700 text-parchment-100 border-wood-900' : 'bg-parchment-100 text-wood-500 border-wood-300'}`}>{fpsLimit === 'vsync' ? 'LIGADO' : 'DESLIGADO'}</button>
-              </div>
+      <SettingsModal
+        show={showSettings}
+        onClose={() => setShowSettings(false)}
+        showFPS={showFPS}
+        setShowFPS={setShowFPS}
+        fpsLimit={fpsLimit}
+        setFpsLimit={setFpsLimit}
+        onSaveAndExit={handleSaveAndExit}
+      />
 
+      {showSaveConfirm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-wood-900/90 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-sm bg-parchment-200 rounded-lg shadow-2xl border-4 border-wood-500 relative overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/wood-pattern.png')] pointer-events-none"></div>
+            <div className="bg-parchment-300/50 p-6 text-center border-b border-wood-300/30">
+              <div className="text-4xl mb-3 text-emerald-700"><i className="fa-solid fa-floppy-disk"></i></div>
+              <h2 className="font-heading text-2xl text-wood-900">Jogo Salvo!</h2>
             </div>
-            <div className="p-4 bg-wood-800 text-center"><button onClick={() => setShowSettings(false)} className="px-6 py-2 bg-wood-600 text-parchment-100 rounded font-heading border border-wood-500 hover:bg-wood-500 transition-colors uppercase tracking-widest text-sm">Fechar</button></div>
+            <div className="p-6 text-center">
+              <p className="text-wood-800 font-serif text-lg mb-2">Seu progresso foi salvo com segurança.</p>
+              <p className="text-wood-600 text-sm italic">Você pode fechar esta janela agora.</p>
+            </div>
+            <div className="p-4 bg-wood-800 text-center">
+              <button onClick={() => setShowSaveConfirm(false)} className="px-8 py-2 bg-wood-600 text-parchment-100 rounded font-heading border border-wood-500 hover:bg-wood-500 transition-colors uppercase tracking-widest text-sm shadow-lg">
+                OK
+              </button>
+            </div>
           </div>
         </div>
       )}

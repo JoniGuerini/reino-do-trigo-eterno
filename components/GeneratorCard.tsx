@@ -48,7 +48,7 @@ const GeneratorCard: React.FC<GeneratorCardProps> = React.memo(({
     const { speedMult, effMult } = multipliers;
     const currentProd = info.prodAmount.mul(effMult);
     const currentDuration = info.duration / speedMult;
-    const isFast = currentDuration <= 0.5 && count.gt(0);
+    const isFast = currentDuration <= 1.0;
 
     // Check Automation Status
     const currentIndex = GENERATOR_ORDER.indexOf(type);
