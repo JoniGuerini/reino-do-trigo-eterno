@@ -48,7 +48,7 @@ const GeneratorCard: React.FC<GeneratorCardProps> = React.memo(({
     const { speedMult, effMult } = multipliers;
     const currentProd = info.prodAmount.mul(effMult);
     const currentDuration = info.duration / speedMult;
-    const isFast = currentDuration < 0.5 && count.gt(0);
+    const isFast = currentDuration <= 0.5 && count.gt(0);
 
     // Check Automation Status
     const currentIndex = GENERATOR_ORDER.indexOf(type);
@@ -71,8 +71,16 @@ const GeneratorCard: React.FC<GeneratorCardProps> = React.memo(({
 
     const isAffordable = purchaseData.canAfford;
 
-    // Calculate displayed production (doubled if luck animation is active)
-    const displayProd = luckAnim ? count.mul(currentProd).mul(2) : count.mul(currentProd);
+    // Calculate displayed production
+    // If duration <= 1.0s, show production PER SECOND
+    const isHighSpeed = currentDuration <= 1.0;
+    let baseDisplayProd = count.mul(currentProd);
+
+    if (isHighSpeed && currentDuration > 0) {
+        baseDisplayProd = baseDisplayProd.div(currentDuration);
+    }
+
+    const displayProd = luckAnim ? baseDisplayProd.mul(2) : baseDisplayProd;
 
     return (
         <div className="flex flex-col gap-1 h-40">
@@ -137,7 +145,7 @@ const GeneratorCard: React.FC<GeneratorCardProps> = React.memo(({
 
                     {/* Stats Row */}
                     <div className="flex justify-between items-center h-6 relative">
-                        <span className="bg-parchment-100 px-2 py-0.5 rounded border border-parchment-border shadow-sm text-wood-800 flex items-center gap-2 text-xs font-bold uppercase tracking-wide tabular-nums z-10 relative">
+                        <span className="bg-parchment-100 px-2 py-0.5 rounded border border-parchment-border shadow-sm text-wood-800 flex items-center gap-2 text-xs font-bold tracking-wide tabular-nums z-10 relative">
                             <i className="fa-solid fa-cubes text-wood-600" />
                             {formatNumber(count)}
                         </span>
@@ -169,7 +177,7 @@ const GeneratorCard: React.FC<GeneratorCardProps> = React.memo(({
                         )}
 
                         <span className={`bg-parchment-100 px-2 py-0.5 rounded border border-parchment-border shadow-sm flex items-center gap-1 text-xs font-bold tabular-nums z-10 relative ${effMult.gt(1) ? 'text-emerald-700' : 'text-wood-800'} ${luckAnim ? 'animate-gold-pulse' : ''}`}>
-                            {count.gt(0) ? `+${formatNumber(displayProd)}` : '0'}
+                            {count.gt(0) ? `+${formatNumber(displayProd)}${isHighSpeed ? '/s' : ''}` : '0'}
                             {React.createElement(info.prodIcon, { className: info.prodColor })}
                         </span>
                     </div>

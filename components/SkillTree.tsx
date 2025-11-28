@@ -1,21 +1,23 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import Decimal from 'break_infinity.js';
 import { GameState, SkillNode } from '../types';
 import { SKILL_TREE, formatNumber } from '../gameData';
 import { useDraggableScroll } from '../hooks/useDraggableScroll';
-import { WheatIcon, WorkerIcon } from './Icons';
+import { WheatIcon } from './Icons';
 
 const CANVAS_SIZE = 20000;
 
 interface SkillTreeProps {
     gameState: GameState;
     onBuySkill: (skillId: string) => void;
+    onBack: () => void;
+    showFPS: boolean;
+    actualFPS: number;
 }
 
-const SkillTree: React.FC<SkillTreeProps> = ({ gameState, onBuySkill }) => {
+const SkillTree: React.FC<SkillTreeProps> = ({ gameState, onBuySkill, onBack, showFPS, actualFPS }) => {
     const { ref, isDragging, events } = useDraggableScroll();
     const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
-    const [zoom, setZoom] = useState(1);
 
     // Center the view on mount
     useEffect(() => {
@@ -31,32 +33,17 @@ const SkillTree: React.FC<SkillTreeProps> = ({ gameState, onBuySkill }) => {
         return () => clearTimeout(timer);
     }, []);
 
-    // Handle Wheel Zoom
-    useEffect(() => {
-        const container = ref.current;
-        if (!container) return;
-
-        const handleWheel = (e: WheelEvent) => {
-            e.preventDefault();
-            const delta = -Math.sign(e.deltaY) * 0.1;
-            setZoom(prev => Math.min(Math.max(prev + delta, 0.2), 2));
-        };
-
-        container.addEventListener('wheel', handleWheel, { passive: false });
-
-        return () => {
-            container.removeEventListener('wheel', handleWheel);
-        };
-    }, []);
-
     const getNodeState = (node: SkillNode) => {
-        const isUnlocked = gameState.unlockedSkills.includes(node.id);
-        if (isUnlocked) return 'unlocked';
+        const rank = gameState.upgrades[node.id] || 0;
+        const maxRank = node.maxRank || 1;
+
+        if (rank >= maxRank) return 'maxed';
+        if (rank > 0) return 'unlocked'; // Can still upgrade
 
         if (node.id === 'peasant_eff_1') return 'available';
 
         const isReachable = SKILL_TREE.some(other =>
-            gameState.unlockedSkills.includes(other.id) && (
+            (gameState.upgrades[other.id] || 0) > 0 && (
                 other.connections.includes(node.id) ||
                 node.connections.includes(other.id)
             )
@@ -70,27 +57,38 @@ const SkillTree: React.FC<SkillTreeProps> = ({ gameState, onBuySkill }) => {
             {/* Background Pattern */}
             <div className="absolute inset-0 opacity-20 pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/stardust.png')]"></div>
 
-            {/* Zoom Indicator (No Buttons) */}
-            <div className="absolute top-4 right-4 z-50 bg-slate-800/80 px-3 py-1 rounded-full border border-slate-600 backdrop-blur-sm pointer-events-none">
-                <div className="text-xs font-bold text-slate-400 tabular-nums">Zoom: {Math.round(zoom * 100)}%</div>
-            </div>
+            {/* Back Button */}
+            <button
+                onClick={onBack}
+                className="absolute top-4 left-4 z-50 bg-wood-700 text-parchment-100 px-4 py-2 rounded-lg border-2 border-wood-900 shadow-lg hover:bg-wood-600 transition-all font-heading font-bold uppercase tracking-wider flex items-center gap-2"
+            >
+                <i className="fa-solid fa-arrow-left"></i>
+                Voltar
+            </button>
+
+            {/* FPS Counter */}
+            {showFPS && (
+                <div className="absolute top-4 right-4 z-50 flex items-center gap-1 bg-slate-800/80 px-2 py-1 rounded border border-slate-600 text-xs font-bold text-slate-400 tabular-nums shadow-sm backdrop-blur-sm pointer-events-none">
+                    <span>{actualFPS}</span>
+                    <span className="text-[10px] opacity-70">FPS</span>
+                </div>
+            )}
 
             {/* Canvas */}
             <div
                 ref={ref}
                 {...events}
-                className={`flex-1 overflow-auto relative custom-scrollbar ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+                className={`flex-1 overflow-auto relative scrollbar-hide ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
             >
                 <div
                     className="relative bg-slate-950/50 origin-top-left transition-transform duration-200 ease-out"
                     style={{
-                        width: `${CANVAS_SIZE * zoom}px`,
-                        height: `${CANVAS_SIZE * zoom}px`,
-                        transform: `scale(${zoom})`,
+                        width: `${CANVAS_SIZE}px`,
+                        height: `${CANVAS_SIZE}px`,
                     }}
                 >
-                    {/* We need a wrapper for the scale to work correctly without affecting the scrollable area calculation incorrectly */}
-                    <div style={{ width: `${CANVAS_SIZE}px`, height: `${CANVAS_SIZE}px`, transform: `scale(${zoom})`, transformOrigin: '0 0' }}>
+                    {/* Content Container */}
+                    <div style={{ width: `${CANVAS_SIZE}px`, height: `${CANVAS_SIZE}px` }}>
                         <div className="absolute inset-0 pointer-events-none" style={{
                             backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.05) 1px, transparent 0)',
                             backgroundSize: '40px 40px'
@@ -105,8 +103,10 @@ const SkillTree: React.FC<SkillTreeProps> = ({ gameState, onBuySkill }) => {
                                         const target = SKILL_TREE.find(n => n.id === targetId);
                                         if (!target) return null;
 
-                                        const isUnlocked = gameState.unlockedSkills.includes(node.id) && gameState.unlockedSkills.includes(targetId);
-                                        const isAvailable = gameState.unlockedSkills.includes(node.id);
+                                        const nodeRank = gameState.upgrades[node.id] || 0;
+                                        const targetRank = gameState.upgrades[targetId] || 0;
+                                        const isUnlocked = nodeRank > 0 && targetRank > 0;
+                                        const isAvailable = nodeRank > 0;
 
                                         return (
                                             <line
@@ -127,14 +127,25 @@ const SkillTree: React.FC<SkillTreeProps> = ({ gameState, onBuySkill }) => {
                             {/* Nodes */}
                             {SKILL_TREE.map(node => {
                                 const state = getNodeState(node);
-                                const canAfford = gameState.wheat.gte(node.cost);
+                                const rank = gameState.upgrades[node.id] || 0;
+                                const maxRank = node.maxRank || 1;
+
+                                // Calculate Cost for NEXT rank
+                                const costMultiplier = new Decimal(2).pow(rank);
+                                const currentCost = node.cost.mul(costMultiplier);
+
+                                const canAfford = gameState.wheat.gte(currentCost);
                                 const isHovered = hoveredNodeId === node.id;
 
                                 let bgClass = 'bg-slate-800 border-slate-600';
                                 let iconClass = 'text-slate-500';
 
-                                if (state === 'unlocked') {
-                                    bgClass = 'bg-amber-900 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.5)]';
+                                if (state === 'maxed') {
+                                    bgClass = 'bg-emerald-900 border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.5)]';
+                                    iconClass = 'text-emerald-400';
+                                } else if (state === 'unlocked') {
+                                    // Unlocked but can upgrade
+                                    bgClass = 'bg-amber-900 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.5)] cursor-pointer hover:bg-amber-800';
                                     iconClass = 'text-amber-400';
                                 } else if (state === 'available') {
                                     bgClass = 'bg-slate-700 border-amber-700/50 hover:border-amber-500 hover:bg-slate-600 cursor-pointer';
@@ -151,13 +162,18 @@ const SkillTree: React.FC<SkillTreeProps> = ({ gameState, onBuySkill }) => {
                                             onMouseLeave={() => setHoveredNodeId(null)}
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                if (state === 'available' && canAfford) {
+                                                if ((state === 'available' || state === 'unlocked') && canAfford) {
                                                     onBuySkill(node.id);
                                                 }
                                             }}
                                             className={`absolute w-12 h-12 -ml-6 -mt-6 rounded-full border-2 flex items-center justify-center transition-all duration-300 ${bgClass}`}
                                         >
                                             {React.createElement(node.icon, { className: `text-xl ${iconClass}` })}
+                                            {rank > 0 && (
+                                                <div className="absolute -bottom-2 -right-2 bg-slate-900 border border-slate-600 text-[10px] font-bold text-white px-1.5 rounded-full">
+                                                    {rank}
+                                                </div>
+                                            )}
                                         </button>
 
                                         {/* Tooltip */}
@@ -165,42 +181,66 @@ const SkillTree: React.FC<SkillTreeProps> = ({ gameState, onBuySkill }) => {
                                             <div
                                                 className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-4 w-64 bg-slate-900/95 border border-amber-900/50 p-3 rounded-lg shadow-2xl backdrop-blur-md text-slate-100 z-50 pointer-events-none"
                                                 style={{
-                                                    // Invert zoom scale for tooltip so it stays readable size
-                                                    transform: `translate(-50%, 0) scale(${1 / zoom})`,
+                                                    transform: `translate(-50%, 0)`,
                                                     transformOrigin: 'bottom center'
                                                 }}
                                             >
                                                 <div className="text-center mb-2">
                                                     <h3 className="font-heading text-lg text-amber-500 leading-tight">{node.name}</h3>
+                                                    <div className="text-xs text-slate-400 font-bold uppercase tracking-wider mt-1">
+                                                        Rank {rank} / {maxRank}
+                                                    </div>
                                                 </div>
                                                 <p className="text-xs text-slate-300 mb-3 italic text-center">"{node.description}"</p>
 
-                                                <div className="flex items-center justify-center gap-2 mb-3 text-xs bg-slate-800/50 py-1 rounded">
-                                                    <span className="text-emerald-400 font-bold">
-                                                        {node.effect.type === 'efficiency' && `+${(node.effect.value * 100) - 100}% Eficiência`}
-                                                        {node.effect.type === 'speed' && `+${(node.effect.value * 100) - 100}% Velocidade`}
-                                                        {node.effect.type === 'luck' && `10% chance de dobrar produção`}
-                                                    </span>
+                                                <div className="flex flex-col gap-1 mb-3 text-xs bg-slate-800/50 py-2 px-2 rounded">
+                                                    <div className="flex justify-between">
+                                                        <span className="text-slate-400">Atual:</span>
+                                                        <span className="text-emerald-400 font-bold">
+                                                            {rank === 0 ? 'x1' : (
+                                                                <>
+                                                                    {node.effect.type === 'efficiency' && `x${Math.pow(2, rank)}`}
+                                                                    {node.effect.type === 'speed' && `x${Math.pow(2, rank)}`}
+                                                                    {node.effect.type === 'luck' && `x${Math.pow(2, rank)} Sorte`}
+                                                                </>
+                                                            )}
+                                                        </span>
+                                                    </div>
+                                                    {rank < maxRank && (
+                                                        <div className="flex justify-between border-t border-slate-700 pt-1 mt-1">
+                                                            <span className="text-amber-400">Próximo:</span>
+                                                            <span className="text-emerald-300 font-bold">
+                                                                {node.effect.type === 'efficiency' && `x${Math.pow(2, rank + 1)}`}
+                                                                {node.effect.type === 'speed' && `x${Math.pow(2, rank + 1)}`}
+                                                                {node.effect.type === 'luck' && `x${Math.pow(2, rank + 1)} Sorte`}
+                                                            </span>
+                                                        </div>
+                                                    )}
                                                 </div>
 
-                                                {state !== 'unlocked' && (
+                                                {state !== 'maxed' && (
                                                     state === 'locked' ? (
                                                         <div className="w-full py-1 bg-slate-800 text-slate-500 text-center rounded font-bold uppercase tracking-wider text-xs flex items-center justify-center gap-2">
                                                             <i className="fa-solid fa-lock"></i> Bloqueado
                                                         </div>
                                                     ) : (
                                                         <div className={`w-full py-1 font-bold text-sm flex items-center justify-center gap-1 ${canAfford ? 'text-amber-500' : 'text-red-400'}`}>
-                                                            {formatNumber(node.cost)}
+                                                            {formatNumber(currentCost)}
                                                             {node.costType === 'wheat' && <WheatIcon className="text-current" />}
                                                         </div>
                                                     )
                                                 )}
 
+                                                {state === 'maxed' && (
+                                                    <div className="w-full py-1 bg-emerald-900/50 text-emerald-400 text-center rounded font-bold uppercase tracking-wider text-xs">
+                                                        Máximo Atingido
+                                                    </div>
+                                                )}
+
                                                 {/* Arrow */}
                                                 <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-8 border-transparent border-t-slate-900/95"></div>
                                             </div>
-                                        )
-                                        }
+                                        )}
                                     </div>
                                 );
                             })}
@@ -208,7 +248,7 @@ const SkillTree: React.FC<SkillTreeProps> = ({ gameState, onBuySkill }) => {
                     </div>
                 </div>
             </div>
-        </div >
+        </div>
     );
 };
 

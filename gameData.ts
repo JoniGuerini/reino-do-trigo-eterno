@@ -3,7 +3,7 @@ import {
     WheatIcon, PeasantIcon, MillIcon, StableIcon,
     GuildIcon, MarketIcon, CastleIcon, CathedralIcon, CitadelIcon, KingdomIcon,
     EmpireIcon, DynastyIcon, PantheonIcon,
-    PlaneIcon, GalaxyIcon, UniverseIcon, MultiverseIcon
+    PlaneIcon, GalaxyIcon, UniverseIcon, MultiverseIcon, WorkerIcon
 } from './components/Icons';
 import { GameState, GeneratorType, SkillNode } from './types';
 
@@ -99,6 +99,8 @@ export const SAVE_KEY = 'reino_trigo_save_v2';
 export const INITIAL_STATE: GameState = {
     wheat: new Decimal(0),
     workers: new Decimal(0),
+    land: new Decimal(0),
+    ores: new Decimal(0),
     peasants: new Decimal(1),
     mills: new Decimal(0),
     stables: new Decimal(0),
@@ -117,6 +119,7 @@ export const INITIAL_STATE: GameState = {
     multiverses: new Decimal(0),
 
     unlockedSkills: [],
+    upgrades: {},
 
     totalHarvested: new Decimal(0),
     totalWorkersGenerated: new Decimal(0),
@@ -173,16 +176,30 @@ export const STATE_KEYS: Record<GeneratorType, keyof GameState> = {
 export const SKILL_TREE: SkillNode[] = [
     // CENTER - PEASANT
     {
+        id: 'worker_eff_1',
+        name: 'Recrutamento em Massa',
+        description: 'Dobra a geração passiva de trabalhadores.',
+        x: 0,
+        y: -150,
+        connections: ['peasant_eff_1'],
+        cost: new Decimal(1000),
+        costType: 'wheat',
+        effect: { type: 'efficiency', target: 'worker', value: 2 },
+        icon: WorkerIcon,
+        maxRank: 10
+    },
+    {
         id: 'peasant_eff_1',
         name: 'Foices de Aço',
         description: 'Dobra a quantidade de trigo colhido.',
         x: 0,
         y: 0,
-        connections: ['peasant_spd_1', 'mill_eff_1'],
+        connections: ['peasant_spd_1', 'mill_eff_1', 'worker_eff_1'],
         cost: new Decimal(100),
         costType: 'wheat',
         effect: { type: 'efficiency', target: 'peasant', value: 2 },
-        icon: PeasantIcon
+        icon: PeasantIcon,
+        maxRank: 10
     },
     {
         id: 'peasant_spd_1',
@@ -194,7 +211,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(250),
         costType: 'wheat',
         effect: { type: 'speed', target: 'peasant', value: 2 },
-        icon: PeasantIcon
+        icon: PeasantIcon,
+        maxRank: 10
     },
     // LEFT - MILL
     {
@@ -207,7 +225,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(1000),
         costType: 'wheat',
         effect: { type: 'efficiency', target: 'mill', value: 2 },
-        icon: MillIcon
+        icon: MillIcon,
+        maxRank: 10
     },
     {
         id: 'mill_spd_1',
@@ -219,7 +238,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(2500),
         costType: 'wheat',
         effect: { type: 'speed', target: 'mill', value: 2 },
-        icon: MillIcon
+        icon: MillIcon,
+        maxRank: 10
     },
     // RIGHT - STABLE
     {
@@ -232,7 +252,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(10000),
         costType: 'wheat',
         effect: { type: 'efficiency', target: 'stable', value: 2 },
-        icon: StableIcon
+        icon: StableIcon,
+        maxRank: 10
     },
     {
         id: 'stable_spd_1',
@@ -244,7 +265,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(25000),
         costType: 'wheat',
         effect: { type: 'speed', target: 'stable', value: 2 },
-        icon: StableIcon
+        icon: StableIcon,
+        maxRank: 10
     },
     // GUILD (Top Right)
     {
@@ -257,7 +279,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(50000),
         costType: 'wheat',
         effect: { type: 'efficiency', target: 'guild', value: 2 },
-        icon: GuildIcon
+        icon: GuildIcon,
+        maxRank: 10
     },
     {
         id: 'guild_spd_1',
@@ -269,7 +292,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(100000),
         costType: 'wheat',
         effect: { type: 'speed', target: 'guild', value: 2 },
-        icon: GuildIcon
+        icon: GuildIcon,
+        maxRank: 10
     },
     // MARKET (Bottom Right)
     {
@@ -282,7 +306,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(500000),
         costType: 'wheat',
         effect: { type: 'efficiency', target: 'market', value: 2 },
-        icon: MarketIcon
+        icon: MarketIcon,
+        maxRank: 10
     },
     {
         id: 'market_spd_1',
@@ -294,7 +319,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(1000000),
         costType: 'wheat',
         effect: { type: 'speed', target: 'market', value: 2 },
-        icon: MarketIcon
+        icon: MarketIcon,
+        maxRank: 10
     },
     // CASTLE (Bottom Left)
     {
@@ -307,7 +333,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(5000000),
         costType: 'wheat',
         effect: { type: 'efficiency', target: 'castle', value: 2 },
-        icon: CastleIcon
+        icon: CastleIcon,
+        maxRank: 10
     },
     {
         id: 'castle_spd_1',
@@ -319,7 +346,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(10000000),
         costType: 'wheat',
         effect: { type: 'speed', target: 'castle', value: 2 },
-        icon: CastleIcon
+        icon: CastleIcon,
+        maxRank: 10
     },
     // CATHEDRAL (Top Left)
     {
@@ -332,7 +360,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(50000000),
         costType: 'wheat',
         effect: { type: 'efficiency', target: 'cathedral', value: 2 },
-        icon: CathedralIcon
+        icon: CathedralIcon,
+        maxRank: 10
     },
     {
         id: 'cathedral_spd_1',
@@ -344,7 +373,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(100000000),
         costType: 'wheat',
         effect: { type: 'speed', target: 'cathedral', value: 2 },
-        icon: CathedralIcon
+        icon: CathedralIcon,
+        maxRank: 10
     },
     // CITADEL (Top)
     {
@@ -357,7 +387,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(500000000),
         costType: 'wheat',
         effect: { type: 'efficiency', target: 'citadel', value: 2 },
-        icon: CitadelIcon
+        icon: CitadelIcon,
+        maxRank: 10
     },
     {
         id: 'citadel_spd_1',
@@ -369,7 +400,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(1000000000),
         costType: 'wheat',
         effect: { type: 'speed', target: 'citadel', value: 2 },
-        icon: CitadelIcon
+        icon: CitadelIcon,
+        maxRank: 10
     },
     // KINGDOM (Bottom)
     {
@@ -382,7 +414,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(5000000000),
         costType: 'wheat',
         effect: { type: 'efficiency', target: 'kingdom', value: 2 },
-        icon: KingdomIcon
+        icon: KingdomIcon,
+        maxRank: 10
     },
     {
         id: 'kingdom_spd_1',
@@ -394,7 +427,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(10000000000),
         costType: 'wheat',
         effect: { type: 'speed', target: 'kingdom', value: 2 },
-        icon: KingdomIcon
+        icon: KingdomIcon,
+        maxRank: 10
     },
     // EMPIRE (Far Left)
     {
@@ -407,7 +441,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(50000000000),
         costType: 'wheat',
         effect: { type: 'efficiency', target: 'empire', value: 2 },
-        icon: EmpireIcon
+        icon: EmpireIcon,
+        maxRank: 10
     },
     {
         id: 'empire_spd_1',
@@ -419,7 +454,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(100000000000),
         costType: 'wheat',
         effect: { type: 'speed', target: 'empire', value: 2 },
-        icon: EmpireIcon
+        icon: EmpireIcon,
+        maxRank: 10
     },
     // DYNASTY (Far Right)
     {
@@ -432,7 +468,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(500000000000),
         costType: 'wheat',
         effect: { type: 'efficiency', target: 'dynasty', value: 2 },
-        icon: DynastyIcon
+        icon: DynastyIcon,
+        maxRank: 10
     },
     {
         id: 'dynasty_spd_1',
@@ -444,7 +481,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(1000000000000),
         costType: 'wheat',
         effect: { type: 'speed', target: 'dynasty', value: 2 },
-        icon: DynastyIcon
+        icon: DynastyIcon,
+        maxRank: 10
     },
     // PANTHEON (Top Left Outer)
     {
@@ -457,7 +495,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(5000000000000),
         costType: 'wheat',
         effect: { type: 'efficiency', target: 'pantheon', value: 2 },
-        icon: PantheonIcon
+        icon: PantheonIcon,
+        maxRank: 10
     },
     {
         id: 'pantheon_spd_1',
@@ -469,7 +508,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(10000000000000),
         costType: 'wheat',
         effect: { type: 'speed', target: 'pantheon', value: 2 },
-        icon: PantheonIcon
+        icon: PantheonIcon,
+        maxRank: 10
     },
     // PLANE (Top Right Outer)
     {
@@ -482,7 +522,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(50000000000000),
         costType: 'wheat',
         effect: { type: 'efficiency', target: 'plane', value: 2 },
-        icon: PlaneIcon
+        icon: PlaneIcon,
+        maxRank: 10
     },
     {
         id: 'plane_spd_1',
@@ -494,7 +535,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(100000000000000),
         costType: 'wheat',
         effect: { type: 'speed', target: 'plane', value: 2 },
-        icon: PlaneIcon
+        icon: PlaneIcon,
+        maxRank: 10
     },
     // GALAXY (Bottom Right Outer)
     {
@@ -507,7 +549,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(500000000000000),
         costType: 'wheat',
         effect: { type: 'efficiency', target: 'galaxy', value: 2 },
-        icon: GalaxyIcon
+        icon: GalaxyIcon,
+        maxRank: 10
     },
     {
         id: 'galaxy_spd_1',
@@ -519,7 +562,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(1000000000000000),
         costType: 'wheat',
         effect: { type: 'speed', target: 'galaxy', value: 2 },
-        icon: GalaxyIcon
+        icon: GalaxyIcon,
+        maxRank: 10
     },
     // UNIVERSE (Bottom Left Outer)
     {
@@ -532,7 +576,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(5000000000000000),
         costType: 'wheat',
         effect: { type: 'efficiency', target: 'universe', value: 2 },
-        icon: UniverseIcon
+        icon: UniverseIcon,
+        maxRank: 10
     },
     {
         id: 'universe_spd_1',
@@ -544,7 +589,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(10000000000000000),
         costType: 'wheat',
         effect: { type: 'speed', target: 'universe', value: 2 },
-        icon: UniverseIcon
+        icon: UniverseIcon,
+        maxRank: 10
     },
     // MULTIVERSE (Top Outer)
     {
@@ -557,7 +603,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(50000000000000000),
         costType: 'wheat',
         effect: { type: 'efficiency', target: 'multiverse', value: 2 },
-        icon: MultiverseIcon
+        icon: MultiverseIcon,
+        maxRank: 10
     },
     {
         id: 'multiverse_spd_1',
@@ -569,7 +616,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(100000000000000000),
         costType: 'wheat',
         effect: { type: 'speed', target: 'multiverse', value: 2 },
-        icon: MultiverseIcon
+        icon: MultiverseIcon,
+        maxRank: 10
     },
     // PEASANT LUCK
     {
@@ -582,7 +630,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(500),
         costType: 'wheat',
         effect: { type: 'luck', target: 'peasant', value: 2 },
-        icon: PeasantIcon
+        icon: PeasantIcon,
+        maxRank: 10
     },
     // MILL LUCK
     {
@@ -595,7 +644,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(5000),
         costType: 'wheat',
         effect: { type: 'luck', target: 'mill', value: 2 },
-        icon: MillIcon
+        icon: MillIcon,
+        maxRank: 10
     },
     // STABLE LUCK
     {
@@ -608,7 +658,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(50000),
         costType: 'wheat',
         effect: { type: 'luck', target: 'stable', value: 2 },
-        icon: StableIcon
+        icon: StableIcon,
+        maxRank: 10
     },
     // GUILD LUCK
     {
@@ -621,7 +672,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(250000),
         costType: 'wheat',
         effect: { type: 'luck', target: 'guild', value: 2 },
-        icon: GuildIcon
+        icon: GuildIcon,
+        maxRank: 10
     },
     // MARKET LUCK
     {
@@ -634,7 +686,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(2500000),
         costType: 'wheat',
         effect: { type: 'luck', target: 'market', value: 2 },
-        icon: MarketIcon
+        icon: MarketIcon,
+        maxRank: 10
     },
     // CASTLE LUCK
     {
@@ -647,7 +700,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(25000000),
         costType: 'wheat',
         effect: { type: 'luck', target: 'castle', value: 2 },
-        icon: CastleIcon
+        icon: CastleIcon,
+        maxRank: 10
     },
     // CATHEDRAL LUCK
     {
@@ -660,7 +714,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(250000000),
         costType: 'wheat',
         effect: { type: 'luck', target: 'cathedral', value: 2 },
-        icon: CathedralIcon
+        icon: CathedralIcon,
+        maxRank: 10
     },
     // CITADEL LUCK
     {
@@ -673,7 +728,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(2500000000),
         costType: 'wheat',
         effect: { type: 'luck', target: 'citadel', value: 2 },
-        icon: CitadelIcon
+        icon: CitadelIcon,
+        maxRank: 10
     },
     // KINGDOM LUCK
     {
@@ -686,7 +742,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(25000000000),
         costType: 'wheat',
         effect: { type: 'luck', target: 'kingdom', value: 2 },
-        icon: KingdomIcon
+        icon: KingdomIcon,
+        maxRank: 10
     },
     // EMPIRE LUCK
     {
@@ -699,7 +756,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(250000000000),
         costType: 'wheat',
         effect: { type: 'luck', target: 'empire', value: 2 },
-        icon: EmpireIcon
+        icon: EmpireIcon,
+        maxRank: 10
     },
     // DYNASTY LUCK
     {
@@ -712,7 +770,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(2500000000000),
         costType: 'wheat',
         effect: { type: 'luck', target: 'dynasty', value: 2 },
-        icon: DynastyIcon
+        icon: DynastyIcon,
+        maxRank: 10
     },
     // PANTHEON LUCK
     {
@@ -725,7 +784,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(25000000000000),
         costType: 'wheat',
         effect: { type: 'luck', target: 'pantheon', value: 2 },
-        icon: PantheonIcon
+        icon: PantheonIcon,
+        maxRank: 10
     },
     // PLANE LUCK
     {
@@ -738,7 +798,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(250000000000000),
         costType: 'wheat',
         effect: { type: 'luck', target: 'plane', value: 2 },
-        icon: PlaneIcon
+        icon: PlaneIcon,
+        maxRank: 10
     },
     // GALAXY LUCK
     {
@@ -751,7 +812,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(2500000000000000),
         costType: 'wheat',
         effect: { type: 'luck', target: 'galaxy', value: 2 },
-        icon: GalaxyIcon
+        icon: GalaxyIcon,
+        maxRank: 10
     },
     // UNIVERSE LUCK
     {
@@ -764,7 +826,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(25000000000000000),
         costType: 'wheat',
         effect: { type: 'luck', target: 'universe', value: 2 },
-        icon: UniverseIcon
+        icon: UniverseIcon,
+        maxRank: 10
     },
     // MULTIVERSE LUCK
     {
@@ -777,7 +840,8 @@ export const SKILL_TREE: SkillNode[] = [
         cost: new Decimal(250000000000000000),
         costType: 'wheat',
         effect: { type: 'luck', target: 'multiverse', value: 2 },
-        icon: MultiverseIcon
+        icon: MultiverseIcon,
+        maxRank: 10
     }
 ];
 
@@ -1033,16 +1097,16 @@ export const formatNumber = (num: Decimal | number) => {
     }
 
     const suffixes = [
-        'Milhão', 'Bilhão', 'Trilhão', 'Quadrilhão', 'Quintilhão', 'Sextilhão', 'Septilhão', 'Octilhão', 'Nonilhão', 'Decilhão',
-        'Undecilhão', 'Duodecilhão', 'Tredecilhão', 'Quatuordecilhão', 'Quindecilhão', 'Sexdecilhão', 'Septendecilhão', 'Octodecilhão', 'Novendecilhão', 'Vigintilhão',
-        'Unvigintilhão', 'Duovigintilhão', 'Trevigintilhão', 'Quatuorvigintilhão', 'Quinvigintilhão', 'Sexvigintilhão', 'Septenvigintilhão', 'Octovigintilhão', 'Novenvigintilhão', 'Trigintilhão',
-        'Untrigintilhão', 'Duotrigintilhão', 'Tretrigintilhão', 'Quatuortrigintilhão', 'Quintrigintilhão', 'Sextrigintilhão', 'Septentrigintilhão', 'Octotrigintilhão', 'Noventrigintilhão', 'Quadragintilhão',
-        'Unquadragintilhão', 'Duoquadragintilhão', 'Trequadragintilhão', 'Quatuorquadragintilhão', 'Quinquadragintilhão', 'Sexquadragintilhão', 'Septenquadragintilhão', 'Octoquadragintilhão', 'Novenquadragintilhão', 'Quinquagintilhão',
-        'Unquinquagintilhão', 'Duoquinquagintilhão', 'Trequinquagintilhão', 'Quatuorquinquagintilhão', 'Quinquinquagintilhão', 'Sexquinquagintilhão', 'Septenquinquagintilhão', 'Octoquinquagintilhão', 'Novenquinquagintilhão', 'Sexagintilhão',
-        'Unsexagintilhão', 'Duosexagintilhão', 'Tresexagintilhão', 'Quatuorsexagintilhão', 'Quinsexagintilhão', 'Sexsexagintilhão', 'Septensexagintilhão', 'Octosexagintilhão', 'Novensexagintilhão', 'Septuagintilhão',
-        'Unseptuagintilhão', 'Duoseptuagintilhão', 'Treseptuagintilhão', 'Quatuorseptuagintilhão', 'Quinseptuagintilhão', 'Sexseptuagintilhão', 'Septenseptuagintilhão', 'Octoseptuagintilhão', 'Novenseptuagintilhão', 'Octogintilhão',
-        'Unoctogintilhão', 'Duooctogintilhão', 'Treoctogintilhão', 'Quatuoroctogintilhão', 'Quinoctogintilhão', 'Sexoctogintilhão', 'Septenoctogintilhão', 'Octooctogintilhão', 'Novenoctogintilhão', 'Nonagintilhão',
-        'Unnonagintilhão', 'Duononagintilhão', 'Trenonagintilhão', 'Quatuornonagintilhão', 'Quinnonagintilhão', 'Sexnonagintilhão', 'Septennonagintilhão', 'Octononagintilhão', 'Novennonagintilhão', 'Centilhão'
+        'M', 'B', 'T', 'Qa', 'Qi', 'Sx', 'Sp', 'Oc', 'No', 'Dc',
+        'Ud', 'Dd', 'Td', 'Qad', 'Qid', 'Sxd', 'Spd', 'Ocd', 'Nod', 'Vg',
+        'Uvg', 'Dvg', 'Tvg', 'Qavg', 'Qivg', 'Sxvg', 'Spvg', 'Ocvg', 'Novg', 'Tg',
+        'Utg', 'Dtg', 'Ttg', 'Qatg', 'Qitg', 'Sxtg', 'Sptg', 'Octg', 'Notg', 'Qag',
+        'Uqag', 'Dqag', 'Tqag', 'Qaqag', 'Qiqag', 'Sxqag', 'Spqag', 'Ocqag', 'Noqag', 'Qig',
+        'Uqig', 'Dqig', 'Tqig', 'Qaqig', 'Qiqig', 'Sxqig', 'Spqig', 'Ocqig', 'Noqig', 'Sxg',
+        'Usxg', 'Dsxg', 'Tsxg', 'Qasxg', 'Qisxg', 'Sxsxg', 'Spsxg', 'Ocsxg', 'Nosxg', 'Spg',
+        'Uspg', 'Dspg', 'Tspg', 'Qaspg', 'Qispg', 'Sxspg', 'Spspg', 'Ocspg', 'Nospg', 'Ocg',
+        'Uocg', 'Docg', 'Tocg', 'Qaocg', 'Qiocg', 'Sxocg', 'Spocg', 'Ococg', 'Noocg', 'Nog',
+        'Unog', 'Dnog', 'Tnog', 'Qanog', 'Qinog', 'Sxnog', 'Spnog', 'Ocnog', 'Nonog', 'C'
     ];
 
     const suffixIndex = Math.floor((n.e - 6) / 3);
@@ -1055,26 +1119,49 @@ export const formatNumber = (num: Decimal | number) => {
     return n.toExponential(2).replace('+', '');
 };
 
-export const calculateMultipliers = (type: GeneratorType, unlockedSkills: string[]) => {
+export const calculateMultipliers = (type: GeneratorType, upgrades: Record<string, number>) => {
     let speedMult = 1;
     let effMult = new Decimal(1);
+    let luckMult = 1;
     let hasLuck = false;
 
     SKILL_TREE.forEach(node => {
-        if (unlockedSkills.includes(node.id) && node.effect.target === type) {
+        const rank = upgrades[node.id] || 0;
+        if (rank > 0 && node.effect.target === type) {
+            const baseEffect = node.effect.value;
+            const rankMult = Math.pow(2, rank - 1);
+            const totalEffect = baseEffect * rankMult;
+
             if (node.effect.type === 'speed') {
-                speedMult *= node.effect.value;
+                speedMult *= totalEffect;
             }
             if (node.effect.type === 'efficiency') {
-                effMult = effMult.mul(node.effect.value);
+                effMult = effMult.mul(totalEffect);
             }
             if (node.effect.type === 'luck') {
                 hasLuck = true;
+                luckMult = Math.max(luckMult, totalEffect);
             }
         }
     });
 
-    return { speedMult, effMult, hasLuck };
+    return { speedMult, effMult, hasLuck, luckMult };
+};
+
+export const calculateWorkerMultiplier = (upgrades: Record<string, number>) => {
+    let effMult = new Decimal(1);
+
+    // Explicit check for worker_eff_1 to ensure it works
+    const workerRank = upgrades['worker_eff_1'] || 0;
+    if (workerRank > 0) {
+        // Base value 2, doubles per rank (2^rank)
+        // Rank 1: 2x
+        // Rank 10: 1024x
+        const multiplier = new Decimal(2).pow(workerRank);
+        effMult = effMult.mul(multiplier);
+    }
+
+    return effMult;
 };
 
 export const calculatePurchase = (type: GeneratorType, current: GameState, buyMode: BuyMode) => {

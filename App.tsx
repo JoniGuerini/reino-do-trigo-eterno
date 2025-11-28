@@ -3,14 +3,14 @@ import Decimal from 'break_infinity.js';
 import { GameState, GeneratorType } from './types';
 import {
   WheatIcon, PeasantIcon, MillIcon, StableIcon,
-  GuildIcon, MarketIcon, CastleIcon, CathedralIcon, CitadelIcon, KingdomIcon, WorkerIcon
+  GuildIcon, MarketIcon, CastleIcon, CathedralIcon, CitadelIcon, KingdomIcon, WorkerIcon, LandIcon, OreIcon
 } from './components/Icons';
 import {
   PEASANT_COST, MILL_COST, STABLE_COST, GUILD_COST, MARKET_COST, CASTLE_COST, CATHEDRAL_COST, CITADEL_COST, KINGDOM_COST,
   HARVEST_DURATION_MS, MILL_DURATION_MS, STABLE_DURATION_MS, GUILD_DURATION_MS, MARKET_DURATION_MS, CASTLE_DURATION_MS, CATHEDRAL_DURATION_MS, CITADEL_DURATION_MS, KINGDOM_DURATION_MS, EMPIRE_DURATION_MS, DYNASTY_DURATION_MS, PANTHEON_DURATION_MS, PLANE_DURATION_MS, GALAXY_DURATION_MS, UNIVERSE_DURATION_MS, MULTIVERSE_DURATION_MS,
   WHEAT_PER_HARVEST, PEASANTS_PER_MILL_CYCLE, MILLS_PER_STABLE_CYCLE, STABLES_PER_GUILD_CYCLE, GUILDS_PER_MARKET_CYCLE, MARKETS_PER_CASTLE_CYCLE, CASTLES_PER_CATHEDRAL_CYCLE, CATHEDRALS_PER_CITADEL_CYCLE, CITADELS_PER_KINGDOM_CYCLE, KINGDOMS_PER_EMPIRE_CYCLE, EMPIRES_PER_DYNASTY_CYCLE, DYNASTIES_PER_PANTHEON_CYCLE, PANTHEONS_PER_PLANE_CYCLE, PLANES_PER_GALAXY_CYCLE, GALAXIES_PER_UNIVERSE_CYCLE, UNIVERSES_PER_MULTIVERSE_CYCLE,
   SAVE_KEY, AUTOMATION_THRESHOLD, GENERATOR_ORDER, STATE_KEYS, GENERATOR_INFO, INITIAL_STATE, SKILL_TREE,
-  formatNumber, calculateMultipliers, calculatePurchase,
+  formatNumber, calculateMultipliers, calculatePurchase, calculateWorkerMultiplier,
   BuyMode,
   WORKER_COST,
   PEASANT_WHEAT_COST, MILL_WHEAT_COST, STABLE_WHEAT_COST, GUILD_WHEAT_COST, MARKET_WHEAT_COST, CASTLE_WHEAT_COST, CATHEDRAL_WHEAT_COST, CITADEL_WHEAT_COST, KINGDOM_WHEAT_COST, EMPIRE_WHEAT_COST, DYNASTY_WHEAT_COST, PANTHEON_WHEAT_COST, PLANE_WHEAT_COST, GALAXY_WHEAT_COST, UNIVERSE_WHEAT_COST, MULTIVERSE_WHEAT_COST,
@@ -34,7 +34,7 @@ interface InfoModalProps {
 
 const InfoModal: React.FC<InfoModalProps> = ({ type, onClose, onNavigate, gameState }) => {
   const info = GENERATOR_INFO[type];
-  const { speedMult, effMult } = calculateMultipliers(type, gameState.unlockedSkills || []);
+  const { speedMult, effMult } = calculateMultipliers(type, gameState.upgrades || {});
   const { ref, isDragging, events } = useDraggableScroll();
 
   return (
@@ -117,9 +117,29 @@ const InfoModal: React.FC<InfoModalProps> = ({ type, onClose, onNavigate, gameSt
                 <div className="flex justify-between items-center border-b border-wood-300/20 pb-2 mb-2">
                   <span className="font-bold text-wood-800 text-xs uppercase tracking-wider">Produção</span>
                   <span className="font-heading text-wood-900 flex items-center gap-2 tabular-nums">
-                    <span className={effMult.gt(1) ? 'text-emerald-700 font-bold' : ''}>{formatNumber(info.prodAmount.mul(effMult))}</span>
-                    {React.createElement(info.prodIcon, { className: `text-lg ${info.prodColor}` })}
-                    <span className={`text-sm ml-1 font-body font-bold ${speedMult > 1 ? 'text-emerald-700' : 'text-wood-600'}`}>/ {info.duration / speedMult}s</span>
+                    {(() => {
+                      const currentDuration = info.duration / speedMult;
+                      const currentProd = info.prodAmount.mul(effMult);
+
+                      if (currentDuration <= 1.0 && currentDuration > 0) {
+                        const prodPerSec = currentProd.div(currentDuration);
+                        return (
+                          <>
+                            <span className={effMult.gt(1) ? 'text-emerald-700 font-bold' : ''}>{formatNumber(prodPerSec)}</span>
+                            {React.createElement(info.prodIcon, { className: `text-lg ${info.prodColor}` })}
+                            <span className={`text-sm ml-1 font-body font-bold ${speedMult > 1 ? 'text-emerald-700' : 'text-wood-600'}`}>/ s</span>
+                          </>
+                        );
+                      }
+
+                      return (
+                        <>
+                          <span className={effMult.gt(1) ? 'text-emerald-700 font-bold' : ''}>{formatNumber(currentProd)}</span>
+                          {React.createElement(info.prodIcon, { className: `text-lg ${info.prodColor}` })}
+                          <span className={`text-sm ml-1 font-body font-bold ${speedMult > 1 ? 'text-emerald-700' : 'text-wood-600'}`}>/ {currentDuration}s</span>
+                        </>
+                      );
+                    })()}
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
@@ -212,6 +232,13 @@ export default function App() {
             }
           });
           hydrated.upgrades = migratedUpgrades;
+        } else if (parsed.unlockedSkills) {
+          // Migration from v1 (unlockedSkills array) to v2 (upgrades map)
+          const migratedUpgrades: Record<string, number> = {};
+          parsed.unlockedSkills.forEach((skillId: string) => {
+            migratedUpgrades[skillId] = 1;
+          });
+          hydrated.upgrades = migratedUpgrades;
         }
 
         // Merge with initial state to ensure new fields (like upgrades) exist
@@ -226,9 +253,11 @@ export default function App() {
   const isResettingRef = useRef(false);
   const stateRef = useRef(gameState);
 
-  useEffect(() => {
-    stateRef.current = gameState;
-  }, [gameState]);
+  // REMOVED: useEffect to sync stateRef from gameState.
+  // stateRef is now the source of truth, and gameState is just for rendering.
+  // useEffect(() => {
+  //   stateRef.current = gameState;
+  // }, [gameState]);
 
   useEffect(() => {
     const saveInterval = setInterval(() => {
@@ -301,6 +330,8 @@ export default function App() {
   const framesRef = useRef(0);
   const lastTimeRef = useRef(performance.now());
   const loopRef = useRef<number | NodeJS.Timeout | null>(null);
+  const lastUiUpdateRef = useRef(0);
+  const pendingUpdatesRef = useRef(false);
 
   const [buyMode, setBuyMode] = useState<BuyMode>('1');
   const [holdingBtn, setHoldingBtn] = useState<GeneratorType | null>(null);
@@ -388,12 +419,16 @@ export default function App() {
 
   // Optimize Multipliers Calculation
   const multipliersCache = useMemo(() => {
-    const cache: Record<GeneratorType, { speedMult: number, effMult: Decimal, hasLuck: boolean }> = {} as any;
+    const cache: Record<GeneratorType, { speedMult: number, effMult: Decimal, hasLuck: boolean, luckMult: number }> = {} as any;
     GENERATOR_ORDER.forEach(type => {
-      cache[type] = calculateMultipliers(type, gameState.unlockedSkills || []);
+      cache[type] = calculateMultipliers(type, gameState.upgrades || {});
     });
     return cache;
-  }, [gameState.unlockedSkills]);
+  }, [gameState.upgrades]);
+
+  const workerMult = useMemo(() => {
+    return calculateWorkerMultiplier(gameState.upgrades || {});
+  }, [gameState.upgrades]);
 
   // MAIN GAME LOOP
   useEffect(() => {
@@ -408,8 +443,7 @@ export default function App() {
       framesRef.current++;
 
       const state = stateRef.current;
-      let stateUpdates: Partial<GameState> = {};
-      let hasUpdates = false;
+      // Removed local hasUpdates, using pendingUpdatesRef instead
       let luckUpdates: Record<string, number> = {};
       let hasLuckUpdates = false;
 
@@ -426,15 +460,15 @@ export default function App() {
         if (count.lte(0)) return;
 
         // Use cached multipliers
-        const { speedMult, effMult, hasLuck } = multipliersCache[type];
+        const { speedMult, effMult, hasLuck, luckMult } = multipliersCache[type];
 
         const duration = baseDuration / speedMult;
         let output = new Decimal(baseOutput).mul(effMult);
         let luckTriggered = false;
 
-        // Luck Mechanic: 10% chance to double output
+        // Luck Mechanic: 10% chance to multiply output by luckMult
         if (hasLuck && Math.random() < 0.1) {
-          output = output.mul(2);
+          output = output.mul(luckMult);
           luckTriggered = true;
         }
 
@@ -446,13 +480,16 @@ export default function App() {
           nextProg = nextProg % 100;
           const produced = count.mul(output).mul(cycles);
 
-          // Queue state update
-          const currentTarget = stateUpdates[targetResource] || state[targetResource] as Decimal;
-          const currentTotal = stateUpdates[totalResource] || state[totalResource] as Decimal;
+          // Update stateRef immediately to avoid stale state in next loop
+          const currentTarget = state[targetResource] as Decimal;
+          const currentTotal = state[totalResource] as Decimal;
 
-          stateUpdates[targetResource] = currentTarget.add(produced) as any;
-          stateUpdates[totalResource] = currentTotal.add(produced) as any;
-          hasUpdates = true;
+          // Mutate stateRef.current (safe because we are the only writer in the loop)
+          // We cast to any to bypass readonly check if needed, but here we just update the properties
+          (state[targetResource] as Decimal) = currentTarget.add(produced);
+          (state[totalResource] as Decimal) = currentTotal.add(produced);
+
+          pendingUpdatesRef.current = true;
 
           if (luckTriggered) {
             nextLastLuck = Date.now();
@@ -467,11 +504,9 @@ export default function App() {
         // Direct DOM Update
         const barRef = progressRefs.current[type];
         if (barRef) {
-          // If very fast, just keep it full or animate differently? For now standard logic.
-          // If duration is super short (< 0.5s), GeneratorCard handles 'isFast' class, 
-          // but we can also just pin width to 100% here if we wanted.
-          // GeneratorCard logic: const isFast = currentDuration < 0.5 && count.gt(0);
-          const isFast = (duration / 1000) < 0.5;
+          // Use a slightly higher threshold than GeneratorCard (0.5s) to ensure we switch to static mode
+          // BEFORE the candy animation triggers. This prevents "loading bar + candy" glitches.
+          const isFast = (duration / 1000) <= 0.55;
           if (isFast) {
             barRef.style.width = '100%';
           } else {
@@ -528,14 +563,6 @@ export default function App() {
       // 16. Multiverse -> Universe
       processGenerator('multiverse', state.multiverses, MULTIVERSE_DURATION_MS, UNIVERSES_PER_MULTIVERSE_CYCLE, 'universes', 'totalUniversesGenerated');
 
-      if (hasUpdates) {
-        setGameState(curr => ({ ...curr, ...stateUpdates }));
-      }
-
-      if (hasLuckUpdates) {
-        setLuckState(prev => ({ ...prev, ...luckUpdates }));
-      }
-
       // Passive Worker Generation (1 per second) - Wall Clock Logic
       const nowTime = Date.now();
       const timeDiff = nowTime - lastWorkerTimeRef.current;
@@ -545,13 +572,30 @@ export default function App() {
         if (secondsPassed > 0) {
           lastWorkerTimeRef.current += secondsPassed * 1000;
 
-          setGameState(curr => ({
-            ...curr,
-            workers: curr.workers.add(secondsPassed),
-            totalWorkersGenerated: curr.totalWorkersGenerated.add(secondsPassed)
-          }));
+          const generated = new Decimal(secondsPassed).mul(workerMult);
+          console.log(`[Worker Debug] Seconds: ${secondsPassed}, Mult: ${workerMult.toString()}, Generated: ${generated.toString()}`);
+
+          // Mutate stateRef directly
+          state.workers = state.workers.add(generated);
+          state.totalWorkersGenerated = state.totalWorkersGenerated.add(generated);
+          pendingUpdatesRef.current = true;
         }
       }
+
+      // Throttle UI updates to 100ms (10fps)
+      if (pendingUpdatesRef.current && (now - lastUiUpdateRef.current >= 100)) {
+        // Sync React state with the updated ref state
+        setGameState({ ...state });
+        lastUiUpdateRef.current = now;
+        pendingUpdatesRef.current = false;
+      }
+
+      if (hasLuckUpdates) {
+        setLuckState(prev => ({ ...prev, ...luckUpdates }));
+      }
+
+
+
 
 
 
@@ -571,7 +615,7 @@ export default function App() {
         clearTimeout(loopRef.current as NodeJS.Timeout);
       }
     };
-  }, [fpsLimit, multipliersCache]);
+  }, [fpsLimit, multipliersCache, workerMult]);
 
   // Handle Cost Feedback Logic
   const showCostFeedback = (type: GeneratorType, costs: { wheat: Decimal, workers: Decimal, prevTier: Decimal, prevTierKey: keyof GameState | null }) => {
@@ -622,32 +666,33 @@ export default function App() {
     // Trigger feedback once
     showCostFeedback(type, costs);
 
-    // Update state
-    setGameState((curr) => {
-      // Re-verify affordability
-      const check = calculatePurchase(type, curr, buyMode);
-      if (!check.canAfford) return curr;
+    // Update state based on stateRef (Source of Truth)
+    const nextState = { ...stateRef.current };
 
-      const nextState = { ...curr };
+    // Re-verify affordability using the latest state
+    const check = calculatePurchase(type, nextState, buyMode);
+    if (!check.canAfford) return;
 
-      // Deduct costs
-      nextState.wheat = nextState.wheat.sub(check.costs.wheat);
-      nextState.workers = nextState.workers.sub(check.costs.workers);
+    // Deduct costs
+    nextState.wheat = nextState.wheat.sub(check.costs.wheat);
+    nextState.workers = nextState.workers.sub(check.costs.workers);
 
-      if (check.costs.prevTierKey) {
-        // We need to cast to Decimal because TS might not know for sure, but our logic guarantees it
-        const prevKey = check.costs.prevTierKey as keyof GameState;
-        if (nextState[prevKey] instanceof Decimal) {
-          (nextState[prevKey] as Decimal) = (nextState[prevKey] as Decimal).sub(check.costs.prevTier);
-        }
+    if (check.costs.prevTierKey) {
+      const prevKey = check.costs.prevTierKey as keyof GameState;
+      if (nextState[prevKey] instanceof Decimal) {
+        (nextState[prevKey] as Decimal) = (nextState[prevKey] as Decimal).sub(check.costs.prevTier);
       }
+    }
 
-      // Add purchased amount
-      const stateKey = STATE_KEYS[type];
-      (nextState[stateKey] as Decimal) = (nextState[stateKey] as Decimal).add(check.amount);
+    // Add purchased amount
+    const stateKey = STATE_KEYS[type];
+    (nextState[stateKey] as Decimal) = (nextState[stateKey] as Decimal).add(check.amount);
 
-      return nextState;
-    });
+    // Sync stateRef immediately
+    stateRef.current = nextState;
+
+    // Trigger React render
+    setGameState(nextState);
   };
 
   useEffect(() => {
@@ -671,20 +716,42 @@ export default function App() {
   const handlePressEnd = () => setHoldingBtn(null);
 
   const handleBuySkill = (skillId: string) => {
-    setGameState(prev => {
-      if (prev.unlockedSkills.includes(skillId)) return prev;
+    const skill = SKILL_TREE.find(s => s.id === skillId);
+    if (!skill) return;
 
-      const skill = SKILL_TREE.find(n => n.id === skillId);
-      if (!skill) return prev;
+    // Use stateRef as source of truth
+    const prev = stateRef.current;
+    const currentRank = prev.upgrades[skillId] || 0;
+    const maxRank = skill.maxRank || 1;
 
-      if (prev.wheat.lt(skill.cost)) return prev;
+    if (currentRank >= maxRank) return;
 
-      return {
-        ...prev,
-        wheat: prev.wheat.sub(skill.cost),
-        unlockedSkills: [...prev.unlockedSkills, skillId]
-      };
-    });
+    // Calculate cost for next rank: BaseCost * (2 ^ currentRank)
+    const costMultiplier = new Decimal(2).pow(currentRank);
+    const currentCost = skill.cost.mul(costMultiplier);
+
+    if (prev.wheat.lt(currentCost)) return;
+
+    const newUpgrades = { ...prev.upgrades };
+    newUpgrades[skillId] = currentRank + 1;
+
+    const newUnlocked = [...prev.unlockedSkills];
+    if (currentRank === 0) {
+      newUnlocked.push(skillId);
+    }
+
+    const newState = {
+      ...prev,
+      wheat: prev.wheat.sub(currentCost),
+      upgrades: newUpgrades,
+      unlockedSkills: newUnlocked
+    };
+
+    // Sync stateRef immediately
+    stateRef.current = newState;
+
+    // Trigger React render
+    setGameState(newState);
   };
 
   const handleResetGame = () => {
@@ -722,6 +789,7 @@ export default function App() {
                 <span className="font-bold text-wood-900 text-sm uppercase tracking-wider">Limite de FPS (VSync)</span>
                 <button onClick={() => setFpsLimit(prev => prev === 'vsync' ? 'unlimited' : 'vsync')} className={`px-4 py-1.5 rounded font-heading text-sm border-2 transition-all shadow-sm ${fpsLimit === 'vsync' ? 'bg-wood-700 text-parchment-100 border-wood-900' : 'bg-parchment-100 text-wood-500 border-wood-300'}`}>{fpsLimit === 'vsync' ? 'LIGADO' : 'DESLIGADO'}</button>
               </div>
+
             </div>
             <div className="p-4 bg-wood-800 text-center"><button onClick={() => setShowSettings(false)} className="px-6 py-2 bg-wood-600 text-parchment-100 rounded font-heading border border-wood-500 hover:bg-wood-500 transition-colors uppercase tracking-widest text-sm">Fechar</button></div>
           </div>
@@ -738,7 +806,7 @@ export default function App() {
       )}
 
       <div className="relative z-10 w-full h-full bg-parchment-200 overflow-hidden select-none flex flex-col">
-        <header className="pt-6 pb-4 px-8 text-center bg-parchment-300/50 border-b border-wood-300/30 relative shrink-0">
+        <header className={`pt-6 pb-4 px-8 text-center bg-parchment-300/50 border-b border-wood-300/30 relative shrink-0 ${currentView === 'skills' ? 'hidden' : ''}`}>
           <div className="absolute top-4 right-4 flex gap-4 z-50">
             {showFPS && (
               <div className="flex items-center gap-1 bg-parchment-100/80 px-2 py-1 rounded border border-wood-300 text-xs font-bold text-wood-600 tabular-nums shadow-sm">
@@ -761,17 +829,38 @@ export default function App() {
           <p className="text-sm font-bold text-wood-500 uppercase tracking-widest text-[0.65rem]">Gestão Feudal</p>
         </header>
 
-        <div className="border-b border-wood-300/30 bg-parchment-100/50 shrink-0">
-          <div className="p-4 flex flex-col items-center justify-center">
-            <span className="text-wood-500 text-[10px] font-bold uppercase tracking-widest mb-1">Estoque Real</span>
-            <div className="flex items-center justify-center gap-8 w-full">
-              <div className="flex items-center gap-3 text-wood-900">
-                <WheatIcon className="text-3xl text-harvest shrink-0" />
-                <span className="text-5xl font-heading leading-none tabular-nums whitespace-nowrap">{formatNumber(gameState.wheat)}</span>
+        <div className={`border-b border-wood-300/30 bg-parchment-100/50 shrink-0 ${currentView === 'skills' ? 'hidden' : ''}`}>
+          <div className="p-2">
+            <span className="text-wood-500 text-[10px] font-bold uppercase tracking-widest mb-1 block px-2">Estoque Real</span>
+            <div className="flex flex-wrap gap-2 px-2">
+              {/* Workers (Pillar Resource) */}
+              <div className="flex items-center gap-2 text-parchment-100 bg-wood-700 px-3 py-1.5 rounded border border-wood-900 shadow-sm" title={`Trabalhadores (Gerados ${formatNumber(workerMult)}/s)`}>
+                <WorkerIcon className="text-base" />
+                <span className="text-lg font-heading leading-none tabular-nums whitespace-nowrap w-24 text-right">{formatNumber(gameState.workers)}</span>
               </div>
-              <div className="flex items-center gap-2 text-wood-800" title="Trabalhadores (Gerados 1/s)">
-                <WorkerIcon className="text-2xl" />
-                <span className="text-3xl font-heading leading-none tabular-nums whitespace-nowrap">{formatNumber(gameState.workers)}</span>
+              {/* Wheat */}
+              <div
+                onClick={() => setCurrentView('kingdom')}
+                className={`flex items-center gap-2 text-wood-900 bg-parchment-200/50 px-3 py-1.5 rounded border border-wood-300/30 shadow-sm cursor-pointer hover:bg-parchment-200 transition-colors ${currentView === 'kingdom' ? 'ring-2 ring-harvest' : ''}`}
+              >
+                <WheatIcon className="text-lg text-harvest shrink-0" />
+                <span className="text-lg font-heading leading-none tabular-nums whitespace-nowrap w-24 text-right">{formatNumber(gameState.wheat)}</span>
+              </div>
+              {/* Land */}
+              <div
+                onClick={() => setCurrentView('land')}
+                className={`flex items-center gap-2 text-emerald-800 bg-parchment-200/50 px-3 py-1.5 rounded border border-wood-300/30 shadow-sm cursor-pointer hover:bg-parchment-200 transition-colors ${currentView === 'land' ? 'ring-2 ring-emerald-400' : ''}`}
+              >
+                <LandIcon className="text-lg shrink-0" />
+                <span className="text-lg font-heading leading-none tabular-nums whitespace-nowrap w-24 text-right">{formatNumber(gameState.land)}</span>
+              </div>
+              {/* Ores */}
+              <div
+                onClick={() => setCurrentView('ores')}
+                className={`flex items-center gap-2 text-slate-700 bg-parchment-200/50 px-3 py-1.5 rounded border border-wood-300/30 shadow-sm cursor-pointer hover:bg-parchment-200 transition-colors ${currentView === 'ores' ? 'ring-2 ring-slate-400' : ''}`}
+              >
+                <OreIcon className="text-lg shrink-0" />
+                <span className="text-lg font-heading leading-none tabular-nums whitespace-nowrap w-24 text-right">{formatNumber(gameState.ores)}</span>
               </div>
             </div>
           </div>
@@ -780,15 +869,18 @@ export default function App() {
         {currentView === 'kingdom' ? (
           <>
             <div className="flex justify-center p-2 bg-parchment-300/30 border-b border-wood-300/30 shrink-0">
-              <div className="flex items-center">
-                <button onClick={toggleBuyMode} className="min-w-[2.5rem] px-2 py-0.5 rounded font-heading font-bold text-[10px] bg-wood-700 text-parchment-100 border border-wood-900 shadow-sm hover:bg-wood-600 transition-all flex items-center justify-center active:translate-y-[1px] select-none" title="Clique para mudar a quantidade de compra"><span>{buyMode}</span></button>
+              <div className="flex items-center gap-2">
+                <button onClick={toggleBuyMode} className="h-7 min-w-[2.5rem] px-2 rounded font-heading font-bold text-[10px] bg-wood-700 text-parchment-100 border border-wood-900 shadow-sm hover:bg-wood-600 transition-all flex items-center justify-center active:translate-y-[1px] select-none" title="Clique para mudar a quantidade de compra"><span>{buyMode}</span></button>
+                <button onClick={() => setCurrentView('skills')} className="h-7 min-w-[2.5rem] px-2 rounded font-heading font-bold text-[10px] bg-wood-700 text-parchment-100 border border-wood-900 shadow-sm hover:bg-wood-600 transition-all flex items-center justify-center active:translate-y-[1px] select-none" title="Árvore de Habilidades">
+                  <i className="fa-solid fa-tree text-xs"></i>
+                </button>
               </div>
             </div>
 
             <div
               ref={scrollContainerRef}
               {...dragEvents}
-              className={`flex-1 p-6 bg-amber-900 shadow-inner grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 overflow-y-auto relative ${isDragging ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
+              className={`flex-1 p-6 bg-amber-900 shadow-inner grid grid-cols-1 md::grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 overflow-y-auto relative ${isDragging ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
             >
               <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/pixel-weave.png')] opacity-40 pointer-events-none fixed"></div>
               {GENERATOR_ORDER.map((type, index) => {
@@ -816,15 +908,32 @@ export default function App() {
                   />
                 );
               })}
-              {/* Spacer for bottom nav */}
-              <div className="h-16 w-full col-span-full"></div>
+
             </div>
           </>
+        ) : (currentView === 'land' || currentView === 'ores') ? (
+          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-parchment-200">
+            <div className="text-6xl text-wood-300 mb-4">
+              <i className="fa-solid fa-lock"></i>
+            </div>
+            <h2 className="text-2xl font-heading text-wood-800 mb-2">Em Breve</h2>
+            <p className="text-wood-600 font-serif italic">Desbloquear Linha de produção futuramente</p>
+          </div>
         ) : (
-          <SkillTree gameState={gameState} onBuySkill={handleBuySkill} />
+          <SkillTree
+            gameState={gameState}
+            onBuySkill={handleBuySkill}
+            onBack={() => setCurrentView('kingdom')}
+            showFPS={showFPS}
+            actualFPS={actualFPS}
+          />
         )}
 
-        <BottomNav currentView={currentView} onNavigate={setCurrentView} />
+        <BottomNav
+          currentView={currentView}
+          onNavigate={setCurrentView}
+          className={currentView === 'skills' ? 'hidden' : ''}
+        />
       </div>
     </div>
   );

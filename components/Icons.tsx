@@ -12,6 +12,14 @@ export const WorkerIcon = ({ className }: { className?: string }) => (
   <i className={`fa-solid fa-hammer ${className}`} aria-hidden="true" />
 );
 
+export const LandIcon = ({ className }: { className?: string }) => (
+  <i className={`fa-solid fa-map-location-dot ${className}`} aria-hidden="true" />
+);
+
+export const OreIcon = ({ className }: { className?: string }) => (
+  <i className={`fa-solid fa-gem ${className}`} aria-hidden="true" />
+);
+
 export const ScrollIcon = ({ className }: { className?: string }) => (
   <i className={`fa-solid fa-scroll ${className}`} aria-hidden="true" />
 );

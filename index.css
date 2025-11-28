@@ -8,11 +8,14 @@
     transform: scale(1);
     color: inherit;
   }
+
   50% {
     text-shadow: 0 0 20px rgba(255, 215, 0, 0.8), 0 0 10px rgba(255, 215, 0, 0.6);
     transform: scale(1.2);
-    color: #fbbf24; /* amber-400 */
+    color: #fbbf24;
+    /* amber-400 */
   }
+
   100% {
     text-shadow: 0 0 0 rgba(255, 215, 0, 0);
     transform: scale(1);
@@ -22,4 +25,17 @@
 
 .animate-gold-pulse {
   animation: gold-pulse 0.5s ease-in-out;
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
 }

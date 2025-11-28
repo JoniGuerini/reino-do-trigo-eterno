@@ -6,6 +6,8 @@ export interface GameState {
   // Recursos
   wheat: Decimal;
   workers: Decimal;
+  land: Decimal;
+  ores: Decimal;
 
 
   // Geradores (Quantidade)
@@ -48,8 +50,7 @@ export interface GameState {
 
   // Skill Tree
   unlockedSkills: string[];
-
-
+  upgrades: Record<string, number>; // ID -> Rank
 }
 
 export interface SkillNode {
@@ -63,9 +64,10 @@ export interface SkillNode {
   costType: 'wheat' | 'workers' | 'points'; // 'points' could be a future currency, using wheat/workers for now
   effect: {
     type: 'speed' | 'efficiency' | 'unlock' | 'luck';
-    target: GeneratorType | 'global';
+    target: GeneratorType | 'global' | 'worker';
     value: number;
   };
+  maxRank?: number;
   icon: any; // React component
 }
 
